@@ -19,9 +19,15 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Get repository owner in lowercase
+      id: repo_owner_lowercase
+      run: echo "name=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v4
       with:
         context: .
         push: true
-        tags: ghcr.io/${{ github.repository }}:${{ github.sha }}, ghcr.io/${{ github.repository }}:latest
+        tags: |
+          ghcr.io/${{ steps.repo_owner_lowercase.outputs.name }}/${{ github.event.repository.name }}:${{ github.sha }}
+          ghcr.io/${{ steps.repo_owner_lowercase.outputs.name }}/${{ github.event.repository.name }}:latest
