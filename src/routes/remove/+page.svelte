@@ -4,14 +4,15 @@
 	
 	let { data } = $props();
 	
-	let selectedProduct = ''
-	let selectedStorage = ''
-	let quantity = 1
-	let notes = ''
-	let loading = false
-	let error = ''
+	let selectedProduct = $state('')
+	let selectedStorage = $state('')
+	let quantity = $state(1)
+	let notes = $state('')
+	let loading = $state(false)
+	let error = $state('')
 	
-	const handleSubmit = async () => {
+	const handleSubmit = async (e) => {
+		e.preventDefault()
 		if (!selectedProduct || !selectedStorage || quantity <= 0) {
 			error = 'Please fill in all required fields with valid values'
 			return
@@ -62,7 +63,7 @@
 			{/if}
 			
 			<div class="bg-white rounded-lg shadow-md p-6">
-				<form on:submit|preventDefault={handleSubmit} class="space-y-4">
+				<form onsubmit={handleSubmit} class="space-y-4">
 					<div>
 						<label for="product" class="block text-sm font-medium text-gray-700 mb-1">
 							Product *
@@ -127,7 +128,7 @@
 					<div class="flex gap-3">
 						<button
 							type="button"
-							on:click={() => goto('/')}
+							onclick={() => goto('/')}
 							class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
 						>
 							Cancel

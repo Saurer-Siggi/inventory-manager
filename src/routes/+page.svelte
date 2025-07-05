@@ -1,5 +1,5 @@
 <script>
-	import { user, signOut } from '$lib/auth.js'
+	import { user, signOut, authLoading } from '$lib/auth.js'
 	import { goto } from '$app/navigation'
 	import { supabase } from '$lib/supabaseClient.js'
 	import { onMount } from 'svelte'
@@ -7,6 +7,8 @@
 	let { data } = $props();
 	let inventoryData = $state(data.inventory || [])
 	let totals = $state(data.totals || { liköer: 0, klopfer: 0, total: 0 })
+	
+	// Auth guard is now handled in +layout.svelte
 	
 	const handleSignOut = async () => {
 		await signOut()
@@ -89,7 +91,8 @@
 				<h1 class="text-3xl font-bold text-gray-900">Saurer Siggi Inventory</h1>
 				{#if $user}
 					<button
-						on:click={handleSignOut}
+						type="button"
+						onclick={handleSignOut}
 						class="px-4 py-2 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
 					>
 						Sign Out

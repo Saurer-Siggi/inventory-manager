@@ -149,7 +149,12 @@ Use the comprehensive testing guide in `TESTING_GUIDE.md` to systematically test
 
 ## Development Workflow Notes
 
-- Let me run the development server and check for bugs instead of you. Because you need to wait for a bash command to finish which will not happen when you run the development server
+- Let me, the user run the development server and check for bugs instead of you. Because you need to wait for a bash command to finish which will not happen when you run the development server. This means dont run `npm run dev`
 - The app uses server-side rendering with `+page.server.js` files for data loading
 - Form submissions use SvelteKit's progressive enhancement
 - Real-time subscriptions are set up in `+layout.svelte` for global state management
+
+
+# Bash commands
+- npm run build: Build the project
+- npm run typecheck: Run the typechecker

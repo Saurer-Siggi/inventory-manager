@@ -1,14 +1,20 @@
 <script>
-	import { signIn, signUp } from '$lib/auth.js'
+	import { signIn, signUp, user, authLoading } from '$lib/auth.js'
 	import { goto } from '$app/navigation'
 	
-	let email = ''
-	let password = ''
-	let isSignUp = false
-	let loading = false
-	let error = ''
+	let email = '';
+	let password = '';
+	let isSignUp = false;
+	let loading = false;
+	let error = '';
 	
-	const handleSubmit = async () => {
+	// Redirect to home if already logged in
+	$: if (!$authLoading && $user) {
+		goto('/')
+	}
+	
+	const handleSubmit = async (e) => {
+		e.preventDefault()
 		loading = true
 		error = ''
 		
@@ -19,8 +25,10 @@
 			
 			if (authError) {
 				error = authError.message
-			} else {
-				goto('/')
+			} else if (data?.user) {
+				setTimeout(() => {
+					goto('/')
+				}, 100)
 			}
 		} catch (e) {
 			error = e.message
@@ -85,6 +93,7 @@
 		
 		<div class="mt-4 text-center">
 			<button
+				type="button"
 				on:click={() => isSignUp = !isSignUp}
 				class="text-blue-500 hover:text-blue-600 text-sm"
 			>

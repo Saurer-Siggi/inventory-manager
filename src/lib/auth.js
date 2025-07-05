@@ -1,19 +1,27 @@
 import { supabase } from './supabaseClient.js'
 import { writable } from 'svelte/store'
 
-// Auth store
+// Auth stores
 export const user = writable(null)
+export const authLoading = writable(true)
 
 // Initialize auth state
 export const initAuth = async () => {
-	// Get initial session
-	const { data: { session } } = await supabase.auth.getSession()
-	user.set(session?.user ?? null)
-
-	// Listen for auth changes
-	supabase.auth.onAuthStateChange((event, session) => {
+	try {
+		// Get initial session
+		const { data: { session } } = await supabase.auth.getSession()
 		user.set(session?.user ?? null)
-	})
+		
+		// Listen for auth changes
+		supabase.auth.onAuthStateChange((event, session) => {
+			user.set(session?.user ?? null)
+		})
+	} catch (error) {
+		console.error('Auth initialization error:', error)
+	} finally {
+		// Auth is now fully initialized
+		authLoading.set(false)
+	}
 }
 
 // Sign in with email
