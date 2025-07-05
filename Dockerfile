@@ -13,6 +13,10 @@ RUN npm ci
 # Copy the rest of the application source code
 COPY . .
 
+# Set dummy environment variables for build
+ENV PUBLIC_SUPABASE_URL=https://dummy.supabase.co
+ENV PUBLIC_SUPABASE_ANON_KEY=dummy_key_for_build
+
 # Build the SvelteKit application
 RUN npm run build
 
