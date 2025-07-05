@@ -7,6 +7,14 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export default defineConfig({
+	server: {
+		host: '0.0.0.0',
+		port: 3000
+	},
+	preview: {
+		host: '0.0.0.0',
+		port: 3000
+	},
 	plugins: [
 		sveltekit(),
 		tailwindcss(),
@@ -21,11 +29,13 @@ export default defineConfig({
 				background_color: '#ffffff',
 				display: 'standalone',
 				start_url: '/',
+				scope: '/',
 				icons: [
 					{
 						src: '/favicon.svg',
 						sizes: '192x192',
-						type: 'image/svg+xml'
+						type: 'image/svg+xml',
+						purpose: 'any maskable'
 					}
 				]
 			},
