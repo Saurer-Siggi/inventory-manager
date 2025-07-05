@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(npm:*)",
-      "Bash(npx sv create:*)"
+      "Bash(npx sv create:*)",
+      "Bash(supabase db query:*)",
+      "Bash(supabase db dump:*)",
+      "Bash(supabase status:*)"
     ],
     "deny": []
   }

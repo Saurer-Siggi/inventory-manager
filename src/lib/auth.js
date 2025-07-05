@@ -1,0 +1,48 @@
+import { supabase } from './supabaseClient.js'
+import { writable } from 'svelte/store'
+
+// Auth store
+export const user = writable(null)
+
+// Initialize auth state
+export const initAuth = async () => {
+	// Get initial session
+	const { data: { session } } = await supabase.auth.getSession()
+	user.set(session?.user ?? null)
+
+	// Listen for auth changes
+	supabase.auth.onAuthStateChange((event, session) => {
+		user.set(session?.user ?? null)
+	})
+}
+
+// Sign in with email
+export const signIn = async (email, password) => {
+	const { data, error } = await supabase.auth.signInWithPassword({
+		email,
+		password
+	})
+	return { data, error }
+}
+
+// Sign up with email
+export const signUp = async (email, password) => {
+	const { data, error } = await supabase.auth.signUp({
+		email,
+		password
+	})
+	return { data, error }
+}
+
+// Sign out
+export const signOut = async () => {
+	const { error } = await supabase.auth.signOut()
+	return { error }
+}
+
+// Check if user is authenticated
+export const isAuthenticated = () => {
+	let currentUser = null
+	user.subscribe(value => currentUser = value)()
+	return currentUser !== null
+}
