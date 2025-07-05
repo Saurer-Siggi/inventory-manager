@@ -13,6 +13,9 @@ RUN npm ci
 # Copy the rest of the application source code
 COPY . .
 
+# Copy .env.example as .env for build (provides dummy values to satisfy SvelteKit)
+RUN cp .env.example .env
+
 # Build the SvelteKit application
 RUN npm run build
 
