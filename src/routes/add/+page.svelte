@@ -50,8 +50,8 @@
 
 			products = productsData || []
 			storages = storagesData || []
-			console.log('Loaded products:', products)
-			console.log('Loaded storages:', storages)
+			console.log('Loaded products:', $state.snapshot(products))
+			console.log('Loaded storages:', $state.snapshot(storages))
 		} catch (err) {
 			console.error('Data loading error:', err)
 			dataError = 'Failed to load data: ' + err.message
