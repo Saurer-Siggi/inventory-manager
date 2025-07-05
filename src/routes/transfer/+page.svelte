@@ -1,6 +1,8 @@
 <script>
 	import { goto } from '$app/navigation'
 	import { supabase } from '$lib/supabaseClient.js'
+	import { user } from '$lib/auth.js'
+	import { onMount } from 'svelte'
 	
 	let { data } = $props();
 	
@@ -11,6 +13,53 @@
 	let notes = $state('')
 	let loading = $state(false)
 	let error = $state('')
+
+	// Client-side data loading
+	let products = $state([])
+	let storages = $state([])
+	let dataLoading = $state(true)
+	let dataError = $state('')
+
+	// Load data client-side after mount
+	onMount(async () => {
+		try {
+			// Fetch products
+			const { data: productsData, error: productsError } = await supabase
+				.from('products')
+				.select('*')
+				.eq('active', true)
+				.order('sku')
+
+			if (productsError) {
+				console.error('Products error:', productsError)
+				dataError = 'Failed to load products: ' + productsError.message
+				return
+			}
+
+			// Fetch storage locations
+			const { data: storagesData, error: storagesError } = await supabase
+				.from('storages')
+				.select('*')
+				.eq('active', true)
+				.order('name')
+
+			if (storagesError) {
+				console.error('Storages error:', storagesError)
+				dataError = 'Failed to load storages: ' + storagesError.message
+				return
+			}
+
+			products = productsData || []
+			storages = storagesData || []
+			console.log('Loaded products:', products)
+			console.log('Loaded storages:', storages)
+		} catch (err) {
+			console.error('Data loading error:', err)
+			dataError = 'Failed to load data: ' + err.message
+		} finally {
+			dataLoading = false
+		}
+	})
 	
 	const handleSubmit = async (e) => {
 		e.preventDefault()
@@ -38,7 +87,7 @@
 					quantity: quantity,
 					from_storage_id: selectedFromStorage,
 					to_storage_id: selectedToStorage,
-					user_email: data.userEmail,
+					user_email: $user?.email,
 					notes: notes || null
 				})
 			
@@ -64,6 +113,18 @@
 		</header>
 		
 		<main class="max-w-md mx-auto">
+			{#if dataLoading}
+				<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+					<p class="text-blue-700 text-sm">Loading data...</p>
+				</div>
+			{/if}
+			{#if dataError}
+				<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+					<h3 class="font-medium text-red-900 mb-2">Data Loading Error</h3>
+					<p class="text-red-700 text-sm">{dataError}</p>
+					<p class="text-red-600 text-xs mt-2">Check console for details</p>
+				</div>
+			{/if}
 			{#if error}
 				<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
 					<p class="text-red-700 text-sm">{error}</p>
@@ -83,7 +144,7 @@
 							class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
 						>
 							<option value="">Select a product</option>
-							{#each data.products as product}
+							{#each products as product}
 								<option value={product.id}>{product.name} ({product.sku})</option>
 							{/each}
 						</select>
@@ -100,7 +161,7 @@
 							class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
 						>
 							<option value="">Select source location</option>
-							{#each data.storages as storage}
+							{#each storages as storage}
 								<option value={storage.id}>{storage.name}</option>
 							{/each}
 						</select>
@@ -117,7 +178,7 @@
 							class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
 						>
 							<option value="">Select destination location</option>
-							{#each data.storages as storage}
+							{#each storages as storage}
 								<option value={storage.id}>{storage.name}</option>
 							{/each}
 						</select>
