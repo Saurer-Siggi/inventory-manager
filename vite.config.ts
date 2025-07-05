@@ -2,6 +2,9 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 export default defineConfig({
 	plugins: [
@@ -30,5 +33,9 @@ export default defineConfig({
 				globPatterns: ['**/*.{js,css,html,svg,png,ico,webp,webmanifest}']
 			}
 		})
-	]
+	],
+	define: {
+		'process.env.PUBLIC_SUPABASE_URL': JSON.stringify(process.env.PUBLIC_SUPABASE_URL),
+		'process.env.PUBLIC_SUPABASE_ANON_KEY': JSON.stringify(process.env.PUBLIC_SUPABASE_ANON_KEY)
+	}
 });

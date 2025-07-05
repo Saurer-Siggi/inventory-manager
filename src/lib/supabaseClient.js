@@ -1,9 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public'
 
 // Get environment variables
-const supabaseUrl = PUBLIC_SUPABASE_URL
-const supabaseKey = PUBLIC_SUPABASE_ANON_KEY
+const supabaseUrl = process.env.PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.PUBLIC_SUPABASE_ANON_KEY
 
 // Validate environment variables
 if (!supabaseUrl) {
