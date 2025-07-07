@@ -19,9 +19,7 @@
 		error = ''
 		
 		try {
-			const { data, error: authError } = isSignUp 
-				? await signUp(email, password)
-				: await signIn(email, password)
+			const { data, error: authError } = await signIn(email, password)
 			
 			if (authError) {
 				error = authError.message
@@ -43,7 +41,7 @@
 		<div class="text-center mb-6">
 			<h1 class="text-2xl font-bold text-gray-900">Saurer Siggi Inventory</h1>
 			<p class="text-gray-600 mt-2">
-				{isSignUp ? 'Create your account' : 'Sign in to your account'}
+				Sign in to your account
 			</p>
 		</div>
 		
@@ -87,18 +85,15 @@
 				disabled={loading}
 				class="w-full bg-blue-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 			>
-				{loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
+				{loading ? 'Loading...' : 'Sign In'}
 			</button>
 		</form>
 		
+		<!-- Signup disabled - invitation only -->
 		<div class="mt-4 text-center">
-			<button
-				type="button"
-				on:click={() => isSignUp = !isSignUp}
-				class="text-blue-500 hover:text-blue-600 text-sm"
-			>
-				{isSignUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
-			</button>
+			<p class="text-gray-500 text-sm">
+				Need access? Contact admin for invitation
+			</p>
 		</div>
 	</div>
 </div>
