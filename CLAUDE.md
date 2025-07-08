@@ -21,14 +21,15 @@ This is the Saurer Siggi Inventory Manager, a Progressive Web App (PWA) for mana
 
 **Development Server:**
 ```bash
-npm run dev                    # Start development server on http://localhost:5173
+npm run dev                    # Start development server on http://localhost:3000
 npm run dev -- --open         # Start dev server and open browser
 ```
 
 **Build & Preview:**
 ```bash
 npm run build                  # Build for production
-npm run preview               # Preview production build
+npm run preview               # Preview production build on http://localhost:3000
+npm run start                 # Start production server (requires build first)
 ```
 
 **Type Checking:**
@@ -174,4 +175,5 @@ Use the comprehensive testing guide in `TESTING_GUIDE.md` to systematically test
 
 # Bash commands
 - npm run build: Build the project
-- npm run typecheck: Run the typechecker
+- npm run check: Run the typechecker
+- npm run start: Start production server

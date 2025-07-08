@@ -7,6 +7,8 @@
 	let { data } = $props();
 	let inventoryData = $state(data.inventory || [])
 	let totals = $state(data.totals || { liköer: 0, klopfer: 0, total: 0 })
+	let stockAlerts = $state([])
+	let triggeredAlerts = $state([])
 	
 	// Auth guard is now handled in +layout.svelte
 	
@@ -17,6 +19,9 @@
 	
 	// Real-time inventory updates
 	onMount(() => {
+		// Load stock alerts on mount
+		loadStockAlerts()
+		
 		// Subscribe to inventory changes
 		const inventoryChannel = supabase
 			.channel('inventory_changes')
@@ -42,6 +47,18 @@
 				(payload) => {
 					// Refresh inventory data when new transactions are added
 					refreshInventory()
+				}
+			)
+			.on(
+				'postgres_changes',
+				{
+					event: '*',
+					schema: 'public',
+					table: 'stock_alerts'
+				},
+				(payload) => {
+					// Refresh stock alerts when they change
+					loadStockAlerts()
 				}
 			)
 			.subscribe()
@@ -77,10 +94,65 @@
 					klopfer: totalKlopfer,
 					total: totalLiköer + totalKlopfer
 				}
+				
+				// Check for triggered alerts after inventory update
+				checkTriggeredAlerts()
 			}
 		} catch (error) {
 			console.error('Error refreshing inventory:', error)
 		}
+	}
+	
+	// Load stock alerts
+	const loadStockAlerts = async () => {
+		try {
+			const { data: alerts, error } = await supabase
+				.from('stock_alerts')
+				.select(`
+					*,
+					products (
+						name,
+						sku
+					),
+					storages (
+						name,
+						type
+					)
+				`)
+				.eq('active', true)
+			
+			if (!error && alerts) {
+				stockAlerts = alerts
+				checkTriggeredAlerts()
+			}
+		} catch (error) {
+			console.error('Error loading stock alerts:', error)
+		}
+	}
+	
+	// Check which alerts are triggered
+	const checkTriggeredAlerts = () => {
+		if (!stockAlerts || !inventoryData) return
+		
+		const triggered = []
+		
+		stockAlerts.forEach(alert => {
+			const inventoryItem = inventoryData.find(item => {
+				return item.sku === alert.products.sku && 
+					   item.storage_name === alert.storages.name
+			})
+			
+			if (inventoryItem && inventoryItem.quantity <= alert.threshold) {
+				triggered.push({
+					...alert,
+					current_quantity: inventoryItem.quantity,
+					product_name: alert.products.name,
+					storage_name: alert.storages.name
+				})
+			}
+		})
+		
+		triggeredAlerts = triggered
 	}
 
 	// Group inventory by storage location
@@ -137,12 +209,31 @@
 			: 'bg-green-50 border-green-200 text-green-900'
 	}
 
-	// Get stock level indicator
-	const getStockLevel = (quantity) => {
-		if (quantity === 0) return { color: 'bg-red-500', text: 'Empty' }
-		if (quantity <= 5) return { color: 'bg-yellow-500', text: 'Low' }
-		if (quantity <= 20) return { color: 'bg-blue-500', text: 'Medium' }
-		return { color: 'bg-green-500', text: 'High' }
+	// Get stock level indicator (enhanced with custom alerts)
+	const getStockLevel = (item) => {
+		const quantity = item.quantity
+		
+		// Check if there's a custom alert threshold for this item
+		const customAlert = stockAlerts.find(alert => {
+			return alert.products.sku === item.sku && 
+				   alert.storages.name === item.storage_name
+		})
+		
+		// If there's a custom alert and we're at or below the threshold
+		if (customAlert && quantity <= customAlert.threshold) {
+			return { 
+				color: 'bg-red-500', 
+				text: 'Alert!', 
+				isAlert: true,
+				threshold: customAlert.threshold
+			}
+		}
+		
+		// Default stock level logic
+		if (quantity === 0) return { color: 'bg-red-500', text: 'Empty', isAlert: false }
+		if (quantity <= 5) return { color: 'bg-yellow-500', text: 'Low', isAlert: false }
+		if (quantity <= 20) return { color: 'bg-blue-500', text: 'Medium', isAlert: false }
+		return { color: 'bg-green-500', text: 'High', isAlert: false }
 	}
 
 	// Collapsible state for each location
@@ -198,6 +289,27 @@
 				<div class="bg-white rounded-lg shadow-md p-6">
 					<h2 class="text-xl font-semibold mb-4">Dashboard</h2>
 					<div class="space-y-4">
+						<!-- Alert Summary -->
+						{#if triggeredAlerts.length > 0}
+							<div class="bg-red-50 border-l-4 border-red-400 p-4 rounded-r-lg">
+								<div class="flex items-center">
+									<div class="w-4 h-4 bg-red-500 rounded-full mr-3 animate-pulse"></div>
+									<h3 class="font-medium text-red-900">
+										{triggeredAlerts.length} Stock Alert{triggeredAlerts.length > 1 ? 's' : ''}
+									</h3>
+								</div>
+								<div class="mt-2 space-y-1">
+									{#each triggeredAlerts as alert}
+										<p class="text-sm text-red-700">
+											<span class="font-medium">{alert.product_name}</span> at 
+											<span class="font-medium">{alert.storage_name}</span>: 
+											{alert.current_quantity} bottles (≤ {alert.threshold})
+										</p>
+									{/each}
+								</div>
+							</div>
+						{/if}
+						
 						<div class="bg-blue-50 p-4 rounded-lg">
 							<h3 class="font-medium text-blue-900">Total Inventory</h3>
 							<p class="text-2xl font-bold text-blue-700">
@@ -243,7 +355,14 @@
 									>
 										<div class="flex justify-between items-center">
 											<div>
-												<h4 class="font-semibold text-lg">{location.storage_name}</h4>
+												<h4 class="font-semibold text-lg flex items-center gap-2">
+													{location.storage_name}
+													{#if triggeredAlerts.filter(alert => alert.storage_name === location.storage_name).length > 0}
+														<span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">
+															{triggeredAlerts.filter(alert => alert.storage_name === location.storage_name).length}
+														</span>
+													{/if}
+												</h4>
 												<p class="text-sm opacity-75">
 													{location.storage_type === 'warehouse' ? '🏭 Warehouse' : '🏠 Home'}
 												</p>
@@ -269,15 +388,22 @@
 												{#each location.items as item}
 													<div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
 														<div class="flex items-center space-x-3">
-															<div class="w-2 h-2 rounded-full {getStockLevel(item.quantity).color}"></div>
+															<div class="w-2 h-2 rounded-full {getStockLevel(item).color} {getStockLevel(item).isAlert ? 'animate-pulse' : ''}"></div>
 															<div>
-																<p class="font-medium text-gray-900">{item.product_name}</p>
+																<p class="font-medium text-gray-900 flex items-center gap-2">
+																	{item.product_name}
+																	{#if getStockLevel(item).isAlert}
+																		<span class="text-xs bg-red-500 text-white px-2 py-1 rounded-full">
+																			Alert!
+																		</span>
+																	{/if}
+																</p>
 																<p class="text-xs text-gray-500">{item.sku}</p>
 															</div>
 														</div>
 														<div class="text-right">
 															<p class="font-semibold text-gray-900">{item.quantity}</p>
-															<p class="text-xs text-gray-500">{getStockLevel(item.quantity).text}</p>
+															<p class="text-xs text-gray-500">{getStockLevel(item).text}</p>
 														</div>
 													</div>
 												{/each}

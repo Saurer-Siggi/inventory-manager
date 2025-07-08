@@ -15,6 +15,7 @@
 	let products = $state(data.products || [])
 	let storages = $state(data.storages || [])
 	let transactions = $state([])
+	let stockAlerts = $state([])
 	let dataLoading = $state(false)
 	
 	// Load dropdown data and enhanced transactions client-side
@@ -51,6 +52,9 @@
 			
 			// Load transactions with proper joins
 			await loadTransactions()
+			
+			// Load stock alerts
+			await loadStockAlerts()
 			
 		} catch (err) {
 			console.error('Data loading error:', err)
@@ -102,6 +106,38 @@
 		}
 	}
 	
+	// Load stock alerts with manual joins
+	const loadStockAlerts = async () => {
+		try {
+			const { data: rawAlerts, error: alertsError } = await supabase
+				.from('stock_alerts')
+				.select('*')
+				.order('created_at', { ascending: false })
+			
+			if (alertsError) {
+				console.error('Stock alerts error:', alertsError)
+				return
+			}
+			
+			// Manually join with products and storages
+			const enhancedAlerts = rawAlerts.map(alert => {
+				const product = products.find(p => p.id === alert.product_id)
+				const storage = storages.find(s => s.id === alert.storage_id)
+				
+				return {
+					...alert,
+					product_name: product?.name || 'Unknown Product',
+					product_sku: product?.sku || 'Unknown',
+					storage_name: storage?.name || 'Unknown Storage'
+				}
+			})
+			
+			stockAlerts = enhancedAlerts
+		} catch (err) {
+			console.error('Error loading stock alerts:', err)
+		}
+	}
+	
 	// Form states
 	let productForm = $state({
 		id: null,
@@ -126,6 +162,14 @@
 		storage_id: '',
 		quantity: 0,
 		notes: 'Admin correction'
+	})
+	
+	let alertForm = $state({
+		id: null,
+		product_id: '',
+		storage_id: '',
+		threshold: 5,
+		active: true
 	})
 	
 	// Reset forms
@@ -157,6 +201,16 @@
 			storage_id: '',
 			quantity: 0,
 			notes: 'Admin correction'
+		}
+	}
+	
+	const resetAlertForm = () => {
+		alertForm = {
+			id: null,
+			product_id: '',
+			storage_id: '',
+			threshold: 5,
+			active: true
 		}
 	}
 	
@@ -361,6 +415,101 @@
 		}
 	}
 	
+	// Stock alert operations
+	const saveAlert = async () => {
+		if (!alertForm.product_id || !alertForm.storage_id || alertForm.threshold < 0) {
+			error = 'Please select both product and storage location, and set a valid threshold'
+			return
+		}
+		
+		loading = true
+		error = ''
+		success = ''
+		
+		try {
+			if (alertForm.id) {
+				// Update existing alert
+				const { error: updateError } = await supabase
+					.from('stock_alerts')
+					.update({
+						product_id: alertForm.product_id,
+						storage_id: alertForm.storage_id,
+						threshold: alertForm.threshold,
+						active: alertForm.active
+					})
+					.eq('id', alertForm.id)
+				
+				if (updateError) throw updateError
+				success = 'Stock alert updated successfully'
+			} else {
+				// Create new alert
+				const { error: insertError } = await supabase
+					.from('stock_alerts')
+					.insert({
+						product_id: alertForm.product_id,
+						storage_id: alertForm.storage_id,
+						threshold: alertForm.threshold,
+						active: alertForm.active
+					})
+				
+				if (insertError) {
+					if (insertError.code === '23505') {
+						error = 'An alert already exists for this product and storage combination'
+					} else {
+						throw insertError
+					}
+				} else {
+					success = 'Stock alert created successfully'
+				}
+			}
+			
+			if (success) {
+				resetAlertForm()
+				await loadStockAlerts()
+			}
+			
+		} catch (e) {
+			error = e.message
+		} finally {
+			loading = false
+		}
+	}
+	
+	const editAlert = (alert) => {
+		alertForm = {
+			id: alert.id,
+			product_id: alert.product_id,
+			storage_id: alert.storage_id,
+			threshold: alert.threshold,
+			active: alert.active
+		}
+	}
+	
+	const deleteAlert = async (alertId) => {
+		if (!confirm('Are you sure you want to delete this alert?')) return
+		
+		loading = true
+		error = ''
+		success = ''
+		
+		try {
+			const { error: deleteError } = await supabase
+				.from('stock_alerts')
+				.delete()
+				.eq('id', alertId)
+			
+			if (deleteError) throw deleteError
+			
+			success = 'Stock alert deleted successfully'
+			await loadStockAlerts()
+			
+		} catch (e) {
+			error = e.message
+		} finally {
+			loading = false
+		}
+	}
+	
 	// Format date
 	const formatDate = (dateString) => {
 		return new Date(dateString).toLocaleString()
@@ -454,6 +603,12 @@
 						class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm {activeTab === 'transactions' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 					>
 						Transaction History
+					</button>
+					<button
+						onclick={() => setActiveTab('alerts')}
+						class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm {activeTab === 'alerts' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+					>
+						Stock Alerts
 					</button>
 				</nav>
 			</div>
@@ -867,6 +1022,140 @@
 							{/each}
 							</tbody>
 						</table>
+					</div>
+				</div>
+			{/if}
+
+			<!-- Stock Alerts Tab -->
+			{#if activeTab === 'alerts'}
+				<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+					<!-- Alert Form -->
+					<div class="bg-white rounded-lg shadow-md p-6">
+						<h2 class="text-xl font-semibold mb-4">
+							{alertForm.id ? 'Edit Stock Alert' : 'Add New Stock Alert'}
+						</h2>
+						<p class="text-sm text-gray-600 mb-4">
+							Set up alerts to be notified when inventory drops below specified thresholds.
+						</p>
+						
+						<form class="space-y-4">
+							<div>
+								<label class="block text-sm font-medium text-gray-700 mb-1">Product *</label>
+								<select
+									bind:value={alertForm.product_id}
+									class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+								>
+									<option value="">Select a product</option>
+									{#each products.filter(p => p.active) as product}
+										<option value={product.id}>{product.name} ({product.sku})</option>
+									{/each}
+								</select>
+							</div>
+							
+							<div>
+								<label class="block text-sm font-medium text-gray-700 mb-1">Storage Location *</label>
+								<select
+									bind:value={alertForm.storage_id}
+									class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+								>
+									<option value="">Select a storage location</option>
+									{#each storages.filter(s => s.active) as storage}
+										<option value={storage.id}>{storage.name}</option>
+									{/each}
+								</select>
+							</div>
+							
+							<div>
+								<label class="block text-sm font-medium text-gray-700 mb-1">Alert Threshold *</label>
+								<input
+									type="number"
+									bind:value={alertForm.threshold}
+									min="0"
+									class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+									placeholder="Alert when stock drops below this number"
+								/>
+								<p class="text-xs text-gray-500 mt-1">
+									Alert will trigger when inventory is at or below this quantity
+								</p>
+							</div>
+							
+							<div class="flex items-center">
+								<input
+									type="checkbox"
+									bind:checked={alertForm.active}
+									id="alert-active"
+									class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+								/>
+								<label for="alert-active" class="ml-2 block text-sm text-gray-700">
+									Active
+								</label>
+							</div>
+							
+							<div class="flex gap-3">
+								<button
+									type="button"
+									onclick={resetAlertForm}
+									class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+								>
+									Reset
+								</button>
+								<button
+									type="button"
+									onclick={saveAlert}
+									disabled={loading}
+									class="flex-1 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 disabled:opacity-50"
+								>
+									{loading ? 'Saving...' : alertForm.id ? 'Update Alert' : 'Create Alert'}
+								</button>
+							</div>
+						</form>
+					</div>
+					
+					<!-- Alerts List -->
+					<div class="bg-white rounded-lg shadow-md p-6">
+						<h2 class="text-xl font-semibold mb-4">Existing Stock Alerts</h2>
+						<div class="space-y-3">
+							{#each stockAlerts as alert}
+								<div class="border rounded-lg p-4 {alert.active ? 'bg-white' : 'bg-gray-50'}">
+									<div class="flex justify-between items-start mb-2">
+										<div>
+											<h3 class="font-medium text-gray-900">{alert.product_name}</h3>
+											<p class="text-sm text-gray-600">{alert.storage_name}</p>
+										</div>
+										<div class="flex gap-2">
+											<button
+												onclick={() => editAlert(alert)}
+												class="text-blue-600 hover:text-blue-800 text-sm"
+											>
+												Edit
+											</button>
+											<button
+												onclick={() => deleteAlert(alert.id)}
+												class="text-red-600 hover:text-red-800 text-sm"
+											>
+												Delete
+											</button>
+										</div>
+									</div>
+									<div class="flex justify-between items-center">
+										<div>
+											<p class="text-sm text-gray-600">
+												Alert when ≤ <span class="font-semibold">{alert.threshold}</span> bottles
+											</p>
+											<p class="text-xs text-gray-500">SKU: {alert.product_sku}</p>
+										</div>
+										<span class="text-sm {alert.active ? 'text-green-600' : 'text-gray-400'}">
+											{alert.active ? 'Active' : 'Inactive'}
+										</span>
+									</div>
+								</div>
+							{:else}
+								<div class="text-center py-8 text-gray-500">
+									<p>No stock alerts configured yet.</p>
+									<p class="text-sm mt-1">Create your first alert to get notified about low stock levels.</p>
+								</div>
+							{/each}
+						</div>
 					</div>
 				</div>
 			{/if}
