@@ -48,17 +48,6 @@ export const signOut = async () => {
 	return { error }
 }
 
-// Invite user (admin only)
-export const inviteUser = async (email, redirectTo = null) => {
-	const { data, error } = await supabase.auth.signUp({
-		email,
-		password: Math.random().toString(36).slice(-8), // Random temp password
-		options: {
-			emailRedirectTo: redirectTo
-		}
-	})
-	return { data, error }
-}
 
 // Check if user is authenticated
 export const isAuthenticated = () => {

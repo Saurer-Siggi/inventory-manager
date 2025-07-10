@@ -172,6 +172,7 @@
 		active: true
 	})
 	
+	
 	// Reset forms
 	const resetProductForm = () => {
 		productForm = {
@@ -213,6 +214,7 @@
 			active: true
 		}
 	}
+	
 	
 	// Product operations
 	const saveProduct = async () => {
@@ -509,6 +511,7 @@
 			loading = false
 		}
 	}
+	
 	
 	// Format date
 	const formatDate = (dateString) => {
@@ -1159,6 +1162,7 @@
 					</div>
 				</div>
 			{/if}
+
 		</main>
 	</div>
 </div> 

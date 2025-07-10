@@ -25,7 +25,10 @@
 	})
 	
 	// Global auth guard - redirect to login if not authenticated
-	$: if (!$authLoading && $user === null && $page.url.pathname !== '/login') {
+	// Allow access to invitation pages without authentication
+	const allowedUnauthenticatedPaths = ['/login', '/invite', '/test-invite', '/reset-password']
+	
+	$: if (!$authLoading && $user === null && !allowedUnauthenticatedPaths.includes($page.url.pathname)) {
 		goto('/login')
 	}
 	
