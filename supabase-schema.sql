@@ -158,6 +158,15 @@ CREATE POLICY "Allow authenticated users to view products" ON products
 CREATE POLICY "Allow authenticated users to view storages" ON storages
     FOR SELECT USING (auth.role() = 'authenticated');
 
+CREATE POLICY "Allow authenticated users to insert storages" ON storages
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Allow authenticated users to update storages" ON storages
+    FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Allow authenticated users to delete storages" ON storages
+    FOR DELETE USING (auth.role() = 'authenticated');
+
 -- Inventory: Read access for authenticated users
 CREATE POLICY "Allow authenticated users to view inventory" ON inventory
     FOR SELECT USING (auth.role() = 'authenticated');

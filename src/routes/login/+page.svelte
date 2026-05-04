@@ -1,88 +1,81 @@
-<script>
-	import { signIn, signUp, user, authLoading } from '$lib/auth.js'
+<script lang="ts">
+	import { signIn, user, authLoading } from '$lib/auth.js'
 	import { supabase } from '$lib/supabaseClient.js'
 	import { goto } from '$app/navigation'
-	
-	let email = '';
-	let password = '';
-	let isSignUp = false;
-	let loading = false;
-	let error = '';
-	let showForgotPassword = false;
-	let resetEmail = '';
-	let resetLoading = false;
-	let resetSuccess = false;
-	
-	// Redirect to home if already logged in
-	$: if (!$authLoading && $user) {
-		goto('/')
-	}
-	
-	const handleSubmit = async (e) => {
+
+	let email = $state('')
+	let password = $state('')
+	let loading = $state(false)
+	let error = $state('')
+	let showForgotPassword = $state(false)
+	let resetEmail = $state('')
+	let resetLoading = $state(false)
+	let resetSuccess = $state(false)
+
+	$effect(() => {
+		if (!$authLoading && $user) goto('/')
+	})
+
+	const handleSubmit = async (e: SubmitEvent) => {
 		e.preventDefault()
 		loading = true
 		error = ''
-		
+
 		try {
 			const { data, error: authError } = await signIn(email, password)
-			
 			if (authError) {
 				error = authError.message
 			} else if (data?.user) {
-				setTimeout(() => {
-					goto('/')
-				}, 100)
+				setTimeout(() => goto('/'), 100)
 			}
 		} catch (e) {
-			error = e.message
+			error = e instanceof Error ? e.message : String(e)
 		} finally {
 			loading = false
 		}
 	}
-	
-	const handleForgotPassword = async (e) => {
+
+	const handleForgotPassword = async (e: SubmitEvent) => {
 		e.preventDefault()
 		resetLoading = true
 		error = ''
-		
+
 		try {
 			const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail, {
 				redirectTo: `${window.location.origin}/reset-password`
 			})
-			
 			if (resetError) {
 				error = resetError.message
 			} else {
 				resetSuccess = true
 			}
 		} catch (e) {
-			error = e.message
+			error = e instanceof Error ? e.message : String(e)
 		} finally {
 			resetLoading = false
 		}
 	}
 </script>
 
-<div class="min-h-screen bg-gray-50 flex items-center justify-center">
-	<div class="max-w-md w-full bg-white rounded-lg shadow-md p-6">
+<div
+	class="flex min-h-dvh items-center justify-center bg-gray-50 px-4"
+	style="padding-top: max(1rem, env(safe-area-inset-top, 0px)); padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));"
+>
+	<div class="w-full max-w-md rounded-lg bg-white p-6 shadow-md">
 		<div class="text-center mb-6">
 			<h1 class="text-2xl font-bold text-gray-900">Saurer Siggi Inventory</h1>
-			<p class="text-gray-600 mt-2">
-				Sign in to your account
-			</p>
+			<p class="text-gray-600 mt-2">Sign in to your account</p>
 		</div>
-		
+
 		{#if error}
 			<div class="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
 				<p class="text-red-700 text-sm">{error}</p>
 			</div>
 		{/if}
-		
-		<form on:submit|preventDefault={handleSubmit} class="space-y-4">
+
+		<form onsubmit={handleSubmit} class="space-y-4">
 			<div>
-				<label for="email" class="block text-sm font-medium text-gray-700 mb-1">
-					Email
-				</label>
+				<label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
 				<input
 					type="email"
 					id="email"
@@ -92,11 +85,9 @@
 					placeholder="Enter your email"
 				/>
 			</div>
-			
+
 			<div>
-				<label for="password" class="block text-sm font-medium text-gray-700 mb-1">
-					Password
-				</label>
+				<label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
 				<input
 					type="password"
 					id="password"
@@ -106,7 +97,7 @@
 					placeholder="Enter your password"
 				/>
 			</div>
-			
+
 			<button
 				type="submit"
 				disabled={loading}
@@ -115,27 +106,22 @@
 				{loading ? 'Loading...' : 'Sign In'}
 			</button>
 		</form>
-		
-		<!-- Password reset and invitation info -->
+
 		<div class="mt-4 text-center space-y-2">
 			<button
 				type="button"
-				on:click={() => showForgotPassword = !showForgotPassword}
+				onclick={() => { showForgotPassword = !showForgotPassword }}
 				class="text-blue-600 hover:text-blue-500 text-sm"
 			>
 				Forgot your password?
 			</button>
-			
-			<p class="text-gray-500 text-sm">
-				Need access? Contact admin for invitation
-			</p>
+			<p class="text-gray-500 text-sm">Need access? Contact admin for invitation</p>
 		</div>
-		
-		<!-- Forgot Password Form -->
+
 		{#if showForgotPassword}
 			<div class="mt-6 border-t pt-6">
 				<h3 class="text-lg font-medium text-gray-900 mb-4">Reset Password</h3>
-				
+
 				{#if resetSuccess}
 					<div class="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
 						<p class="text-green-700 text-sm">
@@ -144,13 +130,13 @@
 					</div>
 					<button
 						type="button"
-						on:click={() => { showForgotPassword = false; resetSuccess = false; resetEmail = ''; }}
+						onclick={() => { showForgotPassword = false; resetSuccess = false; resetEmail = '' }}
 						class="w-full text-blue-600 hover:text-blue-500 text-sm"
 					>
 						Back to login
 					</button>
 				{:else}
-					<form on:submit|preventDefault={handleForgotPassword} class="space-y-4">
+					<form onsubmit={handleForgotPassword} class="space-y-4">
 						<div>
 							<label for="resetEmail" class="block text-sm font-medium text-gray-700 mb-1">
 								Email Address
@@ -164,11 +150,11 @@
 								placeholder="Enter your email address"
 							/>
 						</div>
-						
+
 						<div class="flex gap-3">
 							<button
 								type="button"
-								on:click={() => { showForgotPassword = false; resetEmail = ''; error = ''; }}
+								onclick={() => { showForgotPassword = false; resetEmail = ''; error = '' }}
 								class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
 							>
 								Cancel

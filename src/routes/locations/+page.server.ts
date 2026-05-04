@@ -1,9 +1,15 @@
 import { redirect } from '@sveltejs/kit'
-import { supabase } from '$lib/supabaseClient.js'
+import type { PageServerLoad } from './$types'
+import type { Product, Storage, InventoryReport } from '$lib/database.types.js'
+import { getIsAdmin } from '$lib/isAdmin.server.js'
 
-export async function load() {
+export const load: PageServerLoad = async ({ locals }) => {
+	if (!getIsAdmin(locals.user?.email)) {
+		throw redirect(303, '/')
+	}
+
+	const supabase = locals.supabase
 	try {
-		// Load all products
 		const { data: products, error: productsError } = await supabase
 			.from('products')
 			.select('*')
@@ -13,13 +19,12 @@ export async function load() {
 			console.error('Products error:', productsError)
 			return {
 				error: 'Failed to load products: ' + productsError.message,
-				products: [],
-				storages: [],
-				inventory: []
+				products: [] as Product[],
+				storages: [] as Storage[],
+				inventory: [] as InventoryReport[]
 			}
 		}
 
-		// Load all storage locations
 		const { data: storages, error: storagesError } = await supabase
 			.from('storages')
 			.select('*')
@@ -29,13 +34,12 @@ export async function load() {
 			console.error('Storages error:', storagesError)
 			return {
 				error: 'Failed to load storages: ' + storagesError.message,
-				products: products || [],
-				storages: [],
-				inventory: []
+				products: products ?? [],
+				storages: [] as Storage[],
+				inventory: [] as InventoryReport[]
 			}
 		}
 
-		// Load current inventory
 		const { data: inventory, error: inventoryError } = await supabase
 			.from('inventory_report')
 			.select('*')
@@ -45,28 +49,24 @@ export async function load() {
 			console.error('Inventory error:', inventoryError)
 			return {
 				error: 'Failed to load inventory: ' + inventoryError.message,
-				products: products || [],
-				storages: storages || [],
-				inventory: []
+				products: products ?? [],
+				storages: storages ?? [],
+				inventory: [] as InventoryReport[]
 			}
 		}
 
-		// Transactions are loaded client-side to avoid relationship issues
-
 		return {
-			products: products || [],
-			storages: storages || [],
-			inventory: inventory || [],
-			connectionStatus: 'Connected to Supabase'
+			products: products ?? [],
+			storages: storages ?? [],
+			inventory: inventory ?? []
 		}
-		
 	} catch (error) {
-		console.error('Admin data loading error:', error)
+		console.error('Locations data loading error:', error)
 		return {
-			error: 'Failed to load admin data: ' + String(error),
-			products: [],
-			storages: [],
-			inventory: []
+			error: 'Failed to load data: ' + (error instanceof Error ? error.message : String(error)),
+			products: [] as Product[],
+			storages: [] as Storage[],
+			inventory: [] as InventoryReport[]
 		}
 	}
-} 
+}
