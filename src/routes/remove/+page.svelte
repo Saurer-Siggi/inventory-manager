@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { supabase } from '$lib/supabaseClient.js'
-	import { user } from '$lib/auth.js'
 	import { get } from 'svelte/store'
 	import { onMount } from 'svelte'
 	import { afterNavigate } from '$app/navigation'
@@ -130,19 +128,20 @@
 
 		loading = true
 		try {
-			const { error: transactionError } = await supabase
-				.from('transactions')
-				.insert({
+			const res = await fetch('/api/transactions', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
 					product_id: selectedProduct,
 					storage_id: selectedStorage,
 					transaction_type: 'remove',
 					quantity: quantityBottles,
-					user_email: $user?.email,
 					notes: notes || null
 				})
+			})
 
-			if (transactionError) {
-				toast.error(transactionError.message)
+			if (!res.ok) {
+				toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to remove stock')
 			} else {
 				const label = usesPacks ? `${quantity} packs (${quantityBottles} btl)` : `${quantityBottles} btl`
 				toast.success(`Removed ${label} of ${selectedProductName} from ${selectedStorageName}`)

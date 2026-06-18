@@ -1,14 +1,27 @@
-version: '3.8'
-
 services:
   app:
-    image: saurer-siggi-inventory-manager:latest
-    container_name: saurer-siggi-inventory-manager
+    image: ghcr.io/saurer-siggi/siggi-inventory:latest
+    container_name: siggi-inventory
+    hostname: siggi-inventory
     restart: unless-stopped
-    ports:
-      - "3000:3000"
     environment:
-      - PUBLIC_SUPABASE_URL=${PUBLIC_SUPABASE_URL}
-      - PUBLIC_SUPABASE_ANON_KEY=${PUBLIC_SUPABASE_ANON_KEY}
+      - DATABASE_PATH=/data/inventory.db
+      - APP_PASSWORD=${APP_PASSWORD:?APP_PASSWORD is required}
+      - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET is required}
+      # Public URL so login/logout form POSTs pass SvelteKit's CSRF check.
+      - ORIGIN=${ORIGIN:?ORIGIN is required}
     env_file:
       - .env
+    volumes:
+      - siggi-data:/data
+    # Joins the shared `proxy` network so Nginx Proxy Manager reaches the app
+    # by hostname (siggi-inventory:3000). No host port published.
+    networks:
+      - proxy
+
+volumes:
+  siggi-data:
+
+networks:
+  proxy:
+    external: true

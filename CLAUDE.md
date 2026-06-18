@@ -47,38 +47,44 @@ npm run prepare              # Sync SvelteKit (runs automatically)
 ## Architecture
 
 **Frontend:** SvelteKit PWA with Tailwind CSS
-- Authentication via Supabase Auth
-- Real-time updates via Supabase Realtime
+- Shared-password authentication (one access password, cookie session)
+- Data refreshed via `invalidateAll()` after mutations (no realtime)
 - Progressive Web App with Service Worker
 - Mobile-first responsive design
 
-**Backend:** Supabase
-- PostgreSQL database with Row Level Security
-- Real-time subscriptions for live updates
-- REST API via Supabase client
+**Backend:** SvelteKit server (adapter-node)
+- Local SQLite database via Node's built-in `node:sqlite` (`DatabaseSync`)
+- All DB access in `src/lib/server/db.ts`; auth in `src/lib/server/auth.ts`
+- Reads via server `load` functions; mutations via JSON API routes under `/api/*`
 
 **Tech Stack:**
 - SvelteKit 2.x with TypeScript
 - Tailwind CSS 4.x for styling
 - Vite PWA plugin for offline support
-- Supabase client for backend integration
+- SQLite (`node:sqlite`) — single local file, no external services
 
 ## Project Structure
 
 ```
 src/
 ├── lib/
-│   ├── supabaseClient.js     # Supabase client configuration
-│   ├── auth.js               # Authentication helpers
+│   ├── server/
+│   │   ├── db.ts             # SQLite layer: schema (auto-created), reads, mutations
+│   │   └── auth.ts           # Shared-password / session-cookie helpers
+│   ├── stores.ts             # Client stores fed by layout load
+│   ├── database.types.ts     # Shared TS types
 │   └── index.ts              # Shared utilities
+├── hooks.server.ts           # Auth guard (redirects to /login)
 ├── routes/
-│   ├── +layout.svelte        # Main layout with auth
+│   ├── +layout.server.ts     # Loads products/storages/inventory/alerts
+│   ├── +layout.svelte        # Main layout (pushes data into stores)
 │   ├── +page.svelte          # Dashboard (protected)
-│   ├── +page.server.js       # Server-side data loading
-│   ├── login/+page.svelte    # Login page
-│   ├── add/                  # Add bottles operation
-│   ├── remove/               # Remove bottles operation
-│   └── transfer/             # Transfer bottles operation
+│   ├── login/                # Password login (form action)
+│   ├── logout/+server.ts     # Clears session cookie
+│   ├── api/                  # JSON mutation endpoints (transactions/products/storages/alerts)
+│   ├── add/ remove/ transfer/  # Stock operations
+│   ├── history/ alerts/      # Read views
+│   └── admin/ locations/     # Product & location management
 └── app.html                  # HTML template
 ```
 
@@ -107,24 +113,25 @@ Each operation includes:
 
 ## Authentication & Security
 
-- Uses Supabase Auth for user management
-- Protected routes redirect to `/login` when not authenticated
-- Row Level Security (RLS) policies enforce data access
-- User sessions persist across browser refreshes
-- All operations require authentication
+- Single shared password (`APP_PASSWORD`) gates the whole app — no user accounts
+- `hooks.server.ts` verifies the signed session cookie and redirects to `/login` when missing
+- No per-user identity: `user_email` on transactions is always null; every logged-in user can
+  manage products, locations, and alerts (`isAdmin` is always true once authenticated)
+- API routes under `/api/*` also check `locals.authed`
 
-## Real-time Features
+## Data Refresh
 
-- Inventory updates appear instantly across all connected clients
-- Uses Supabase Realtime subscriptions on the `inventory` table
-- Transaction history updates in real-time
-- Multiple users can work simultaneously without conflicts
+- No realtime. After a mutation the client calls `invalidateAll()` to re-run server loads
+- `inventory` is recomputed from transactions inside `applyTransaction()` (mirrors the old
+  Postgres trigger) within a single SQLite transaction
 
 ## Environment Variables
 
-Required environment variables (set in `.env`):
-- `PUBLIC_SUPABASE_URL`: Your Supabase project URL
-- `PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anon public key
+Set in `.env` (see `.env.example`):
+- `APP_PASSWORD`: shared access password
+- `SESSION_SECRET`: secret for signing the session cookie
+- `DATABASE_PATH`: SQLite file path (default `data/inventory.db`)
+- `ORIGIN`: public URL in production (behind a TLS proxy) for CSRF on form POSTs
 
 ## Development Status
 
@@ -147,30 +154,19 @@ Required environment variables (set in `.env`):
 ## Development Notes
 
 - **Fully Functional MVP**: All core features implemented and tested
-- **Client-side Data Loading**: All forms use client-side data fetching to work with Row Level Security (RLS)
+- **Server-side Data Loading**: Reads happen in `load` functions; the client never touches the DB
 - **Mobile-first Design**: Responsive design with Tailwind CSS optimized for mobile usage
 - **Immutable Audit Trail**: Transaction history provides complete audit trail for compliance
-- **Automatic Inventory Updates**: Stock levels automatically calculated from transaction history via database triggers
+- **Automatic Inventory Updates**: `applyTransaction()` recomputes stock from each transaction
 - **PWA Ready**: Progressive Web App features configured for offline capability
-- **Real-time Sync**: Multiple users can work simultaneously with instant updates
-
-## Testing
-
-Use the comprehensive testing guide in `TESTING_GUIDE.md` to systematically test all features including:
-- Authentication flows
-- CRUD operations (add, remove, transfer)
-- Real-time updates
-- Data validation
-- Mobile responsiveness
 
 ## Development Workflow Notes
 
 - Let me, the user run the development server and check for bugs instead of you. Because you need to wait for a bash command to finish which will not happen when you run the development server. This means dont run `npm run dev`
-- **Data Loading Strategy**: Client-side data fetching in all operation pages (add/remove/transfer) to work with Supabase Row Level Security
-- **Authentication Flow**: Global auth guard in `+layout.svelte` handles route protection
-- **Form Submissions**: SvelteKit's progressive enhancement with proper error handling
-- **Real-time Subscriptions**: Set up in `+layout.svelte` for global inventory state management
-- **RLS Compatibility**: All data access uses authenticated Supabase client for proper permissions
+- **Data Loading Strategy**: Server `load` functions return DB data; mutations go through `/api/*` then `invalidateAll()`
+- **Authentication Flow**: `hooks.server.ts` enforces the session cookie; `/login` is the only public route
+- **Form Submissions**: SvelteKit form action for login; JSON `fetch` for in-app mutations
+- **Database**: `node:sqlite` file managed entirely in `src/lib/server/db.ts` (schema auto-created on first run; starts empty — populate via `npm run migrate:supabase`)
 
 
 # Bash commands

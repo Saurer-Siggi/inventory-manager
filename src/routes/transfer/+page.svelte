@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { supabase } from '$lib/supabaseClient.js'
-	import { user } from '$lib/auth.js'
 	import { onMount } from 'svelte'
 	import { products, storages, operationsLoading, operationsError, loadOperationsData, getStockForSelection, refreshInventory } from '$lib/stores.js'
 	import { toast } from '$lib/components/toast.js'
@@ -39,21 +37,22 @@
 
 		loading = true
 		try {
-			const { error: transactionError } = await supabase
-				.from('transactions')
-				.insert({
+			const res = await fetch('/api/transactions', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
 					product_id: selectedProduct,
 					storage_id: selectedFromStorage,
 					transaction_type: 'transfer',
 					quantity: quantityBottles,
 					from_storage_id: selectedFromStorage,
 					to_storage_id: selectedToStorage,
-					user_email: $user?.email,
 					notes: notes || null
 				})
+			})
 
-			if (transactionError) {
-				toast.error(transactionError.message)
+			if (!res.ok) {
+				toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to transfer stock')
 			} else {
 				const label = usesPacks ? `${quantity} packs (${quantityBottles} btl)` : `${quantityBottles} btl`
 				toast.success(`Moved ${label} of ${selectedProductName}: ${fromStorageName} → ${toStorageName}`)

@@ -1,55 +1,23 @@
 import { writable, derived } from 'svelte/store'
-import { supabase } from './supabaseClient.js'
+import { invalidateAll } from '$app/navigation'
 import type { Product, Storage, InventoryReport } from './database.types.js'
 
+// Populated from the root layout's server `load` (see +layout.svelte).
 export const products = writable<Product[]>([])
 export const storages = writable<Storage[]>([])
 export const inventory = writable<InventoryReport[]>([])
+
+// Kept for backwards compatibility with the operation pages' templates.
+// Data now arrives synchronously via the layout load, so there's no async loading state.
 export const operationsLoading = writable(false)
 export const operationsError = writable('')
 
-let initialized = false
-let loadOperationsPromise: Promise<void> | null = null
+/** No-op: data is provided by the layout load. Pages may still call this on mount. */
+export async function loadOperationsData() {}
 
-export async function loadOperationsData() {
-	if (initialized) return
-	if (loadOperationsPromise) return loadOperationsPromise
-
-	loadOperationsPromise = (async () => {
-		operationsLoading.set(true)
-		operationsError.set('')
-
-		try {
-			const [productsResult, storagesResult, inventoryResult] = await Promise.all([
-				supabase.from('products').select('*').eq('active', true).order('sku'),
-				supabase.from('storages').select('*').eq('active', true).order('name'),
-				supabase.from('inventory_report').select('*').order('product_name, storage_name')
-			])
-
-			if (productsResult.error) throw new Error('Failed to load products: ' + productsResult.error.message)
-			if (storagesResult.error) throw new Error('Failed to load storages: ' + storagesResult.error.message)
-
-			products.set(productsResult.data ?? [])
-			storages.set(storagesResult.data ?? [])
-			if (!inventoryResult.error) inventory.set(inventoryResult.data ?? [])
-			initialized = true
-		} catch (err) {
-			operationsError.set(err instanceof Error ? err.message : String(err))
-		} finally {
-			operationsLoading.set(false)
-			loadOperationsPromise = null
-		}
-	})()
-
-	await loadOperationsPromise
-}
-
+/** Re-run server loads so the stores pick up fresh inventory after a mutation. */
 export async function refreshInventory() {
-	const { data, error } = await supabase
-		.from('inventory_report')
-		.select('*')
-		.order('product_name, storage_name')
-	if (!error && data) inventory.set(data)
+	await invalidateAll()
 }
 
 /** Derive current stock for a product+storage combination */

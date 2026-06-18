@@ -1,45 +1,18 @@
 <script lang="ts">
-	import { supabase } from '$lib/supabaseClient.js'
-	import { user } from '$lib/auth.js'
-	import { onMount } from 'svelte'
+	import { invalidateAll } from '$app/navigation'
 	import { toast } from '$lib/components/toast.js'
 	import Drawer from '$lib/components/Drawer.svelte'
 
 	let { data } = $props()
 
 	let loading = $state(false)
-	let products = $state<any[]>([])
-	let storages = $state<any[]>([])
-	let inventoryData = $state<any[]>([])
-	let dataLoading = $state(false)
-
-	$effect.pre(() => {
-		products = [...(data.products ?? [])]
-		storages = [...(data.storages ?? [])]
-		inventoryData = [...(data.inventory ?? [])]
-	})
-
-	onMount(async () => {
-		try {
-			dataLoading = true
-			if (!data.products?.length) {
-				const { data: d } = await supabase.from('products').select('*').order('sku')
-				if (d) products = d
-			}
-			if (!data.storages?.length) {
-				const { data: d } = await supabase.from('storages').select('*').order('name')
-				if (d) storages = d
-			}
-		} catch (err) {
-			toast.error('Failed to load: ' + String(err))
-		} finally {
-			dataLoading = false
-		}
-	})
+	const dataLoading = false
+	const products = $derived(data.products ?? [])
+	const storages = $derived(data.storages ?? [])
+	const inventoryData = $derived(data.inventory ?? [])
 
 	const refreshInventory = async () => {
-		const { data: d } = await supabase.from('inventory_report').select('*').order('product_name, storage_name')
-		if (d) inventoryData = d
+		await invalidateAll()
 	}
 
 	const sortedStorages = $derived(
@@ -84,25 +57,24 @@
 		}
 		loading = true
 		try {
-			const payload = {
-				name: storageForm.name,
-				type: storageForm.type,
-				location_details: storageForm.location_details,
-				active: storageForm.active
+			const res = await fetch('/api/storages', {
+				method: storageForm.id ? 'PUT' : 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					id: storageForm.id,
+					name: storageForm.name,
+					type: storageForm.type,
+					location_details: storageForm.location_details,
+					active: storageForm.active
+				})
+			})
+			if (!res.ok) {
+				toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to save location')
+				return
 			}
-			if (storageForm.id) {
-				const { error } = await supabase.from('storages').update(payload).eq('id', storageForm.id)
-				if (error) throw error
-				toast.success('Location updated')
-			} else {
-				const { error } = await supabase.from('storages').insert(payload)
-				if (error) throw error
-				toast.success('Location created')
-			}
+			toast.success(storageForm.id ? 'Location updated' : 'Location created')
 			storageDrawerOpen = false
-			const { data: d } = await supabase.from('storages').select('*').order('name')
-			if (d) storages = d
-			await refreshInventory()
+			await invalidateAll()
 		} catch (e: any) {
 			toast.error(e.message)
 		} finally {
@@ -115,30 +87,18 @@
 		if (!confirm(`Permanently delete "${storageForm.name}"? This cannot be undone.`)) return
 		loading = true
 		try {
-			const { error } = await supabase.from('storages').delete().eq('id', storageForm.id)
-			if (error) {
-				if (error.code === '23503') {
-					toast.error('Cannot delete — another record still references this location. Archive it instead (turn off Active).')
-					return
-				}
-				const msg = (error.message ?? '').toLowerCase()
-				if (
-					error.code === '42501' ||
-					msg.includes('row-level security') ||
-					msg.includes('violates row-level security')
-				) {
-					toast.error(
-						'Delete blocked by database security (RLS). Run the SQL script supabase/fix-storages-rls.sql in the Supabase SQL editor, or archive the location.'
-					)
-					return
-				}
-				throw error
+			const res = await fetch('/api/storages', {
+				method: 'DELETE',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ id: storageForm.id })
+			})
+			if (!res.ok) {
+				toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to delete location')
+				return
 			}
 			toast.success(`Deleted "${storageForm.name}"`)
 			storageDrawerOpen = false
-			const { data: d } = await supabase.from('storages').select('*').order('name')
-			if (d) storages = d
-			await refreshInventory()
+			await invalidateAll()
 		} catch (e: any) {
 			toast.error(e.message ?? String(e))
 		} finally {
@@ -188,21 +148,27 @@
 			const storage = storages.find((s: any) => s.name === correctionItem.storage_name)
 			if (!product || !storage) throw new Error('Could not find product or storage')
 
-			const { error } = await supabase.from('transactions').insert({
-				product_id: product.id,
-				storage_id: storage.id,
-				transaction_type: correctionDiffBottles > 0 ? 'add' : 'remove',
-				quantity: Math.abs(correctionDiffBottles),
-				user_email: $user?.email,
-				notes:
-					correctionNotes +
-					` (${correctionCurrentPacks}→${correctionTargetPacks}${correctionUsesPacks ? ' packs' : ' btl'})`
+			const res = await fetch('/api/transactions', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					product_id: product.id,
+					storage_id: storage.id,
+					transaction_type: correctionDiffBottles > 0 ? 'add' : 'remove',
+					quantity: Math.abs(correctionDiffBottles),
+					notes:
+						correctionNotes +
+						` (${correctionCurrentPacks}→${correctionTargetPacks}${correctionUsesPacks ? ' packs' : ' btl'})`
+				})
 			})
-			if (error) throw error
+			if (!res.ok) {
+				toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to update count')
+				return
+			}
 
 			toast.success(`Updated ${correctionItem.product_name} @ ${correctionItem.storage_name}`)
 			correctionDrawerOpen = false
-			await refreshInventory()
+			await invalidateAll()
 		} catch (e: any) {
 			toast.error(e.message)
 		} finally {
@@ -418,10 +384,6 @@
 			<div class="h-4 w-4 animate-spin rounded-full border-2 border-blue-400 border-t-transparent"></div>
 		{/if}
 	</div>
-
-	{#if data.error}
-		<div class="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{data.error}</div>
-	{/if}
 
 	<button
 		type="button"

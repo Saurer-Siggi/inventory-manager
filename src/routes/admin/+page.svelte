@@ -1,33 +1,13 @@
 <script lang="ts">
-	import { supabase } from '$lib/supabaseClient.js'
-	import { user } from '$lib/auth.js'
-	import { onMount } from 'svelte'
+	import { invalidateAll } from '$app/navigation'
 	import { toast } from '$lib/components/toast.js'
 	import Drawer from '$lib/components/Drawer.svelte'
 
 	let { data } = $props()
 
 	let loading = $state(false)
-	let products = $state<any[]>([])
-	let dataLoading = $state(false)
-
-	$effect.pre(() => {
-		products = [...(data.products ?? [])]
-	})
-
-	onMount(async () => {
-		try {
-			dataLoading = true
-			if (!data.products || data.products.length === 0) {
-				const { data: d } = await supabase.from('products').select('*').order('sku')
-				if (d) products = d
-			}
-		} catch (err) {
-			toast.error('Failed to load: ' + String(err))
-		} finally {
-			dataLoading = false
-		}
-	})
+	const products = $derived(data.products ?? [])
+	const dataLoading = false
 
 	let productDrawerOpen = $state(false)
 	let productForm = $state({
@@ -65,26 +45,26 @@
 		}
 		loading = true
 		try {
-			const payload = {
-				sku: productForm.sku,
-				name: productForm.name,
-				description: productForm.description,
-				unit_size: productForm.unit_size,
-				pack_size: productForm.pack_size,
-				active: productForm.active
+			const res = await fetch('/api/products', {
+				method: productForm.id ? 'PUT' : 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					id: productForm.id,
+					sku: productForm.sku,
+					name: productForm.name,
+					description: productForm.description,
+					unit_size: productForm.unit_size,
+					pack_size: productForm.pack_size,
+					active: productForm.active
+				})
+			})
+			if (!res.ok) {
+				toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to save product')
+				return
 			}
-			if (productForm.id) {
-				const { error } = await supabase.from('products').update(payload).eq('id', productForm.id)
-				if (error) throw error
-				toast.success('Product updated')
-			} else {
-				const { error } = await supabase.from('products').insert(payload)
-				if (error) throw error
-				toast.success('Product created')
-			}
+			toast.success(productForm.id ? 'Product updated' : 'Product created')
 			productDrawerOpen = false
-			const { data: d } = await supabase.from('products').select('*').order('sku')
-			if (d) products = d
+			await invalidateAll()
 		} catch (e: any) {
 			toast.error(e.message)
 		} finally {
@@ -93,13 +73,17 @@
 	}
 
 	const toggleProductActive = async (product: any) => {
-		const { error } = await supabase.from('products').update({ active: !product.active }).eq('id', product.id)
-		if (error) {
-			toast.error(error.message)
+		const res = await fetch('/api/products', {
+			method: 'PUT',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ ...product, active: !product.active })
+		})
+		if (!res.ok) {
+			toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to update product')
 			return
 		}
-		products = products.map(p => (p.id === product.id ? { ...p, active: !p.active } : p))
 		toast.success(product.active ? 'Product deactivated' : 'Product activated')
+		await invalidateAll()
 	}
 
 	const deleteProduct = async () => {
@@ -107,17 +91,18 @@
 		if (!confirm(`Permanently delete "${productForm.name}"? This cannot be undone.`)) return
 		loading = true
 		try {
-			const { error } = await supabase.from('products').delete().eq('id', productForm.id)
-			if (error) {
-				if (error.code === '23503') {
-					toast.error('Cannot delete — this product has history. Deactivate it instead.')
-				} else throw error
-			} else {
-				toast.success(`Deleted "${productForm.name}"`)
-				productDrawerOpen = false
-				const { data: d } = await supabase.from('products').select('*').order('sku')
-				if (d) products = d
+			const res = await fetch('/api/products', {
+				method: 'DELETE',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ id: productForm.id })
+			})
+			if (!res.ok) {
+				toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to delete product')
+				return
 			}
+			toast.success(`Deleted "${productForm.name}"`)
+			productDrawerOpen = false
+			await invalidateAll()
 		} catch (e: any) {
 			toast.error(e.message)
 		} finally {
@@ -228,7 +213,7 @@
 			</a>
 			<div class="min-w-0 flex-1">
 				<h1 class="text-base font-bold text-gray-900">Products</h1>
-				<p class="truncate text-xs text-gray-400">Catalog · {$user?.email ?? ''}</p>
+				<p class="truncate text-xs text-gray-400">Catalog</p>
 			</div>
 			{#if dataLoading}
 				<div class="h-4 w-4 animate-spin rounded-full border-2 border-blue-400 border-t-transparent"></div>
@@ -237,13 +222,6 @@
 	</header>
 
 	<main class="px-4 py-4">
-		{#if data.error}
-			<div class="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
-				<h2 class="mb-1 text-sm font-semibold text-red-900">Data error</h2>
-				<p class="text-xs text-red-700">{data.error}</p>
-			</div>
-		{/if}
-
 		<div class="mb-3 flex items-center justify-between">
 			<h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Catalog</h2>
 			<button

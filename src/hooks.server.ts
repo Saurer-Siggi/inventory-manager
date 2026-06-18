@@ -1,36 +1,16 @@
-import { createServerClient } from '@supabase/ssr'
 import { redirect, type Handle } from '@sveltejs/kit'
-import { env } from '$env/dynamic/public'
-// Non-null: validated at startup by supabaseClient.ts
-const PUBLIC_SUPABASE_URL = env.PUBLIC_SUPABASE_URL!
-const PUBLIC_SUPABASE_ANON_KEY = env.PUBLIC_SUPABASE_ANON_KEY!
+import { SESSION_COOKIE, verifyToken } from '$lib/server/auth.js'
 
-const PROTECTED_PATHS = ['/']
-const PUBLIC_PATHS = ['/login', '/invite', '/test-invite', '/reset-password']
+const PUBLIC_PATHS = ['/login']
 
 export const handle: Handle = async ({ event, resolve }) => {
-	event.locals.supabase = createServerClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-		cookies: {
-			getAll: () => event.cookies.getAll(),
-			setAll: (cookiesToSet) => {
-				for (const { name, value, options } of cookiesToSet) {
-					event.cookies.set(name, value, { ...options, path: '/' })
-				}
-			}
-		}
-	})
-
-	const { data: { user } } = await event.locals.supabase.auth.getUser()
-	event.locals.user = user
+	event.locals.authed = verifyToken(event.cookies.get(SESSION_COOKIE))
 
 	const isPublicPath = PUBLIC_PATHS.some(p => event.url.pathname.startsWith(p))
-	const isProtectedPath = PROTECTED_PATHS.some(p => event.url.pathname.startsWith(p))
 
-	if (!user && isProtectedPath && !isPublicPath) {
+	if (!event.locals.authed && !isPublicPath) {
 		throw redirect(303, '/login')
 	}
 
-	return resolve(event, {
-		filterSerializedResponseHeaders: (name) => name === 'content-range' || name === 'x-supabase-api-version'
-	})
+	return resolve(event)
 }

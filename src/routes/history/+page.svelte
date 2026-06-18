@@ -1,52 +1,10 @@
 <script lang="ts">
-	import { supabase } from '$lib/supabaseClient.js'
-	import { onMount } from 'svelte'
+	let { data } = $props()
 
-	type Row = {
-		id: string
-		created_at: string
-		transaction_type: string
-		quantity: number
-		user_email: string | null
-		notes: string | null
-		product_name: string
-		storage_name: string
-		from_storage_name: string | null
-		to_storage_name: string | null
-	}
-
-	let loading = $state(true)
-	let transactions = $state<Row[]>([])
+	const transactions = $derived(data.transactions ?? [])
+	const loading = false
 
 	const formatDate = (d: string) => new Date(d).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })
-
-	onMount(async () => {
-		try {
-			const [{ data: products }, { data: storages }, { data: raw }] = await Promise.all([
-				supabase.from('products').select('id, name'),
-				supabase.from('storages').select('id, name'),
-				supabase.from('transactions').select('*').order('created_at', { ascending: false }).limit(80)
-			])
-			const pmap = new Map((products ?? []).map(p => [p.id, p.name as string]))
-			const smap = new Map((storages ?? []).map(s => [s.id, s.name as string]))
-			transactions = (raw ?? []).map(t => ({
-				id: t.id,
-				created_at: t.created_at,
-				transaction_type: t.transaction_type,
-				quantity: t.quantity,
-				user_email: t.user_email,
-				notes: t.notes,
-				product_name: pmap.get(t.product_id) ?? 'Unknown',
-				storage_name: smap.get(t.storage_id) ?? 'Unknown',
-				from_storage_name: t.from_storage_id ? (smap.get(t.from_storage_id) ?? null) : null,
-				to_storage_name: t.to_storage_id ? (smap.get(t.to_storage_id) ?? null) : null
-			}))
-		} catch (e) {
-			console.error(e)
-		} finally {
-			loading = false
-		}
-	})
 </script>
 
 <div class="mx-auto max-w-2xl pb-6 pt-3">

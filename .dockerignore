@@ -4,6 +4,9 @@
 .idea
 node_modules
 npm-debug.log
+build
+.svelte-kit
+data
 README.md
 .env
 .DS_Store

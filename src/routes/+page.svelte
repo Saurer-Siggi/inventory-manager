@@ -1,28 +1,15 @@
 <script lang="ts">
-	import { user, signOut } from '$lib/auth.js'
-	import { goto } from '$app/navigation'
-	import { supabase } from '$lib/supabaseClient.js'
-	import { onMount } from 'svelte'
-	import type { InventoryReport, StockAlertWithJoins, TriggeredAlert } from '$lib/database.types.js'
-	import { products as productsStore, loadOperationsData } from '$lib/stores.js'
+	import type { TriggeredAlert } from '$lib/database.types.js'
+	import { products as productsStore } from '$lib/stores.js'
 
 	let { data } = $props()
-	let inventoryData = $state<InventoryReport[]>([])
-	$effect.pre(() => {
-		inventoryData = [...(data.inventory ?? [])]
-	})
-	let stockAlerts = $state<StockAlertWithJoins[]>([])
-	let triggeredAlerts = $state<TriggeredAlert[]>([])
+	const inventoryData = $derived(data.inventory ?? [])
+	const stockAlerts = $derived(data.alerts ?? [])
 	/** `locations` = group by warehouse/home; `products` = each product with per-location breakdown */
 	let inventoryView = $state<'locations' | 'products'>('locations')
 	// Expanded by default
 	let collapsedSections = $state<Record<string, boolean>>({})
 	let collapsedProducts = $state<Record<string, boolean>>({})
-
-	const handleSignOut = async () => {
-		await signOut()
-		goto('/login')
-	}
 
 	// Load products for pack_size lookups
 	const packSizeForSku = (sku: string) => $productsStore.find(p => p.sku === sku)?.pack_size ?? 1
@@ -34,65 +21,10 @@
 		return rem > 0 ? `${packs} packs +${rem} btl` : `${packs} packs`
 	}
 
-	onMount(() => {
-		loadOperationsData()
-		loadStockAlerts()
-
-		const inventoryChannel = supabase
-			.channel('inventory_changes')
-			.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'inventory' }, () => {
-				refreshInventory()
-			})
-			.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transactions' }, () => {
-				refreshInventory()
-			})
-			.on('postgres_changes', { event: '*', schema: 'public', table: 'stock_alerts' }, () => {
-				loadStockAlerts()
-			})
-			.subscribe()
-
-		return () => {
-			supabase.removeChannel(inventoryChannel)
-		}
-	})
-
-	const refreshInventory = async () => {
-		try {
-			const { data: inventory, error } = await supabase
-				.from('inventory_report')
-				.select('*')
-				.order('product_name, storage_name')
-
-			if (!error && inventory) {
-				inventoryData = inventory
-				checkTriggeredAlerts()
-			}
-		} catch (error) {
-			console.error('Error refreshing inventory:', error)
-		}
-	}
-
-	const loadStockAlerts = async () => {
-		try {
-			const { data: alerts, error } = await supabase
-				.from('stock_alerts')
-				.select(`*, products (name, sku), storages (name, type)`)
-				.eq('active', true)
-
-			if (!error && alerts) {
-				stockAlerts = alerts
-				checkTriggeredAlerts()
-			}
-		} catch (error) {
-			console.error('Error loading stock alerts:', error)
-		}
-	}
-
-	const checkTriggeredAlerts = () => {
-		if (!stockAlerts || !inventoryData) return
-
+	const triggeredAlerts = $derived.by(() => {
 		const triggered: TriggeredAlert[] = []
 		stockAlerts.forEach(alert => {
+			if (!alert.active) return
 			const inventoryItem = inventoryData.find(
 				item => item.sku === alert.products.sku && item.storage_name === alert.storages.name
 			)
@@ -105,9 +37,8 @@
 				})
 			}
 		})
-
-		triggeredAlerts = triggered
-	}
+		return triggered
+	})
 
 	const totals = $derived.by(() => {
 		const byProduct: Record<string, { name: string; quantity: number }> = {}
@@ -197,16 +128,7 @@
 </script>
 
 <div class="mx-auto flex max-w-md flex-col pb-4 pt-3">
-	{#if data.error}
-		<div class="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
-			<h3 class="mb-1 text-sm font-semibold text-red-900">Connection error</h3>
-			<p class="text-xs text-red-700">{data.error}</p>
-			<p class="mt-2 text-[11px] text-red-600">
-				Check your Supabase URL and key in <code class="rounded bg-red-100 px-0.5">.env</code>.
-			</p>
-		</div>
-	{:else}
-		<!-- Alerts banner -->
+	<!-- Alerts banner -->
 		{#if triggeredAlerts.length > 0}
 			<div class="mb-3 rounded-xl border border-red-200 bg-red-50 p-3">
 				<div class="flex items-center gap-2">
@@ -466,18 +388,18 @@
 			<p class="rounded-xl bg-white py-8 text-center text-sm text-gray-500 shadow-sm ring-1 ring-gray-100">No stock recorded yet.</p>
 		{/if}
 
-		<!-- Sign out -->
-		<div class="mt-6 flex justify-center">
+	<!-- Sign out -->
+	<div class="mt-6 flex justify-center">
+		<form method="POST" action="/logout">
 			<button
-				type="button"
+				type="submit"
 				class="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-				onclick={handleSignOut}
 			>
 				<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
 				</svg>
-				Sign out ({$user?.email})
+				Sign out
 			</button>
-		</div>
-	{/if}
+		</form>
+	</div>
 </div>

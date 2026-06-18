@@ -1,18 +1,19 @@
 <script lang="ts">
-	import { supabase } from '$lib/supabaseClient.js'
 	import { page } from '$app/stores'
-	import { onMount } from 'svelte'
+	import { invalidateAll } from '$app/navigation'
 	import { toast } from '$lib/components/toast.js'
 	import Drawer from '$lib/components/Drawer.svelte'
-	import type { InventoryReport, StockAlertWithJoins, TriggeredAlert } from '$lib/database.types.js'
+	import type { StockAlertWithJoins, TriggeredAlert } from '$lib/database.types.js'
+
+	let { data } = $props()
 
 	const isAdmin = $derived($page.data.isAdmin === true)
 
-	let loading = $state(true)
-	let products = $state<{ id: string; name: string; sku: string; active: boolean }[]>([])
-	let storages = $state<{ id: string; name: string; active: boolean }[]>([])
-	let inventoryData = $state<InventoryReport[]>([])
-	let stockAlerts = $state<StockAlertWithJoins[]>([])
+	const loading = false
+	const products = $derived(data.products ?? [])
+	const storages = $derived(data.storages ?? [])
+	const inventoryData = $derived(data.inventory ?? [])
+	const stockAlerts = $derived(data.alerts ?? [])
 	let saveLoading = $state(false)
 
 	const triggered = $derived.by(() => {
@@ -33,30 +34,6 @@
 			}
 		})
 		return out
-	})
-
-	const loadAll = async () => {
-		const [{ data: p }, { data: s }, { data: inv }, { data: al }] = await Promise.all([
-			supabase.from('products').select('id, name, sku, active').order('sku'),
-			supabase.from('storages').select('id, name, active').order('name'),
-			supabase.from('inventory_report').select('*').order('product_name, storage_name'),
-			supabase.from('stock_alerts').select(`*, products (name, sku), storages (name, type)`).order('created_at', { ascending: false })
-		])
-		if (p) products = p as typeof products
-		if (s) storages = s as typeof storages
-		if (inv) inventoryData = inv as InventoryReport[]
-		if (al) stockAlerts = al as StockAlertWithJoins[]
-	}
-
-	onMount(async () => {
-		try {
-			await loadAll()
-		} catch (e) {
-			console.error(e)
-			toast.error('Could not load alerts')
-		} finally {
-			loading = false
-		}
 	})
 
 	let alertDrawerOpen = $state(false)
@@ -85,29 +62,24 @@
 		}
 		saveLoading = true
 		try {
-			const payload = {
-				product_id: alertForm.product_id,
-				storage_id: alertForm.storage_id,
-				threshold: alertForm.threshold,
-				active: alertForm.active
+			const res = await fetch('/api/alerts', {
+				method: alertForm.id ? 'PUT' : 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					id: alertForm.id,
+					product_id: alertForm.product_id,
+					storage_id: alertForm.storage_id,
+					threshold: alertForm.threshold,
+					active: alertForm.active
+				})
+			})
+			if (!res.ok) {
+				toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to save alert')
+				return
 			}
-			if (alertForm.id) {
-				const { error } = await supabase.from('stock_alerts').update(payload).eq('id', alertForm.id)
-				if (error) throw error
-				toast.success('Alert updated')
-			} else {
-				const { error } = await supabase.from('stock_alerts').insert(payload)
-				if (error) {
-					if (error.code === '23505') {
-						toast.error('An alert already exists for this product + location')
-						return
-					}
-					throw error
-				}
-				toast.success('Alert created')
-			}
+			toast.success(alertForm.id ? 'Alert updated' : 'Alert created')
 			alertDrawerOpen = false
-			await loadAll()
+			await invalidateAll()
 		} catch (e: any) {
 			toast.error(e.message)
 		} finally {
@@ -119,10 +91,17 @@
 		if (!confirm('Delete this alert?')) return
 		saveLoading = true
 		try {
-			const { error } = await supabase.from('stock_alerts').delete().eq('id', alertId)
-			if (error) throw error
+			const res = await fetch('/api/alerts', {
+				method: 'DELETE',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ id: alertId })
+			})
+			if (!res.ok) {
+				toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to delete alert')
+				return
+			}
 			toast.success('Alert deleted')
-			await loadAll()
+			await invalidateAll()
 		} catch (e: any) {
 			toast.error(e.message)
 		} finally {
