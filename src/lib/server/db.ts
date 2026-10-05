@@ -7,7 +7,8 @@ import type {
 	Storage,
 	InventoryReport,
 	StockAlertWithJoins,
-	TransactionType
+	TransactionType,
+	RecentCombo
 } from '$lib/database.types.js'
 
 const DB_PATH = process.env.DATABASE_PATH ?? 'data/inventory.db'
@@ -21,6 +22,10 @@ function openDb(): DatabaseSync {
 	db.exec('PRAGMA journal_mode = WAL;')
 	db.exec('PRAGMA foreign_keys = ON;')
 	migrate(db)
+	// client_id = idempotency key from the client (double taps / offline replays); reverts_id = undo link
+	addColumnIfMissing(db, 'transactions', 'client_id', 'TEXT')
+	addColumnIfMissing(db, 'transactions', 'reverts_id', 'TEXT')
+	db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_client_id ON transactions(client_id) WHERE client_id IS NOT NULL')
 	return db
 }
 
@@ -84,6 +89,12 @@ function migrate(db: DatabaseSync) {
 			UNIQUE(product_id, storage_id)
 		);
 
+		CREATE TABLE IF NOT EXISTS sessions (
+			token_hash TEXT PRIMARY KEY,
+			created_at TEXT NOT NULL,
+			expires_at TEXT NOT NULL
+		);
+
 		CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at);
 		CREATE INDEX IF NOT EXISTS idx_inventory_product_storage ON inventory(product_id, storage_id);
 
@@ -103,6 +114,12 @@ function migrate(db: DatabaseSync) {
 			WHERE p.active = 1 AND s.active = 1
 			ORDER BY p.sku, s.name;
 	`)
+}
+
+// Additive column migrations (CREATE TABLE IF NOT EXISTS won't touch existing tables).
+function addColumnIfMissing(db: DatabaseSync, table: string, column: string, ddl: string) {
+	const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
+	if (!cols.some(c => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`)
 }
 
 // ─── Row mapping ───────────────────────────────────────────────────────────────
@@ -157,6 +174,8 @@ export type HistoryRow = {
 	quantity: number
 	user_email: string | null
 	notes: string | null
+	reverts_id: string | null
+	reverted: number
 	product_name: string
 	storage_name: string
 	from_storage_name: string | null
@@ -166,7 +185,8 @@ export type HistoryRow = {
 export function getTransactions(limit = 80): HistoryRow[] {
 	return (db
 		.prepare(
-			`SELECT t.id, t.created_at, t.transaction_type, t.quantity, t.user_email, t.notes,
+			`SELECT t.id, t.created_at, t.transaction_type, t.quantity, t.user_email, t.notes, t.reverts_id,
+				EXISTS (SELECT 1 FROM transactions r WHERE r.reverts_id = t.id) AS reverted,
 				p.name AS product_name,
 				s.name AS storage_name,
 				fs.name AS from_storage_name,
@@ -191,10 +211,39 @@ export type TransactionInput = {
 	from_storage_id?: string | null
 	to_storage_id?: string | null
 	notes?: string | null
+	/** Idempotency key: a repeated key returns the original transaction instead of booking twice. */
+	client_id?: string | null
+	/** Allow stock to go below zero (otherwise rejected with InsufficientStockError). */
+	force?: boolean
+	reverts_id?: string | null
 }
 
-export function applyTransaction(input: TransactionInput) {
+export class InsufficientStockError extends Error {
+	constructor(
+		public available: number,
+		public requested: number
+	) {
+		super(`Nicht genug Bestand (${available} vorhanden, ${requested} angefragt)`)
+	}
+}
+
+export function getStock(productId: string, storageId: string): number {
+	const row = db
+		.prepare('SELECT quantity FROM inventory WHERE product_id = ? AND storage_id = ?')
+		.get(productId, storageId) as { quantity: number } | undefined
+	return row?.quantity ?? 0
+}
+
+export function applyTransaction(input: TransactionInput): { id: string; duplicate: boolean } {
+	if (input.client_id) {
+		const existing = db.prepare('SELECT id FROM transactions WHERE client_id = ?').get(input.client_id) as
+			| { id: string }
+			| undefined
+		if (existing) return { id: existing.id, duplicate: true }
+	}
+
 	const now = new Date().toISOString()
+	const id = randomUUID()
 	const upsert = (productId: string, storageId: string, delta: number) => {
 		db.prepare(
 			`INSERT INTO inventory (id, product_id, storage_id, quantity, updated_at)
@@ -204,14 +253,25 @@ export function applyTransaction(input: TransactionInput) {
 		).run(randomUUID(), productId, storageId, delta, now, delta, now)
 	}
 
-	db.prepare('BEGIN').run()
+	db.prepare('BEGIN IMMEDIATE').run()
 	try {
+		// A transfer can never move more than the source holds — not even with `force`. The source is
+		// clamped at 0 but the destination would still get the full amount, which creates stock from nothing.
+		// (Forcing a plain remove is fine: it can only lose phantom stock, never invent any.)
+		if (input.transaction_type === 'transfer') {
+			const available = getStock(input.product_id, input.from_storage_id!)
+			if (available < input.quantity) throw new InsufficientStockError(available, input.quantity)
+		} else if (!input.force && input.transaction_type === 'remove') {
+			const available = getStock(input.product_id, input.storage_id)
+			if (available < input.quantity) throw new InsufficientStockError(available, input.quantity)
+		}
+
 		db.prepare(
 			`INSERT INTO transactions
-				(id, product_id, storage_id, transaction_type, quantity, from_storage_id, to_storage_id, user_email, notes, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`
+				(id, product_id, storage_id, transaction_type, quantity, from_storage_id, to_storage_id, user_email, notes, created_at, client_id, reverts_id)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`
 		).run(
-			randomUUID(),
+			id,
 			input.product_id,
 			input.storage_id,
 			input.transaction_type,
@@ -219,7 +279,9 @@ export function applyTransaction(input: TransactionInput) {
 			input.from_storage_id ?? null,
 			input.to_storage_id ?? null,
 			input.notes ?? null,
-			now
+			now,
+			input.client_id ?? null,
+			input.reverts_id ?? null
 		)
 
 		if (input.transaction_type === 'add') {
@@ -231,10 +293,73 @@ export function applyTransaction(input: TransactionInput) {
 			upsert(input.product_id, input.to_storage_id!, input.quantity)
 		}
 		db.prepare('COMMIT').run()
+		return { id, duplicate: false }
 	} catch (err) {
 		db.prepare('ROLLBACK').run()
 		throw err
 	}
+}
+
+/** Undo = book the opposite transaction (the audit trail stays immutable). Only once per transaction. */
+export function undoTransaction(id: string): { id: string } {
+	const t = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as any
+	if (!t) throw new Error('Buchung nicht gefunden')
+	if (t.reverts_id) throw new Error('Eine Rückbuchung kann nicht erneut rückgängig gemacht werden')
+	if (db.prepare('SELECT 1 FROM transactions WHERE reverts_id = ?').get(id)) {
+		throw new Error('Buchung wurde bereits rückgängig gemacht')
+	}
+	const note = 'Rückgängig gemacht' + (t.notes ? `: ${t.notes}` : '')
+	const base = { product_id: t.product_id, quantity: t.quantity, notes: note, force: true, reverts_id: id }
+	if (t.transaction_type === 'transfer') {
+		return applyTransaction({
+			...base,
+			storage_id: t.to_storage_id,
+			transaction_type: 'transfer',
+			from_storage_id: t.to_storage_id,
+			to_storage_id: t.from_storage_id
+		})
+	}
+	return applyTransaction({
+		...base,
+		storage_id: t.storage_id,
+		transaction_type: t.transaction_type === 'add' ? 'remove' : 'add'
+	})
+}
+
+/** Most frequent recent bookings (last 60 days) — drives the one-tap "Zuletzt / Häufig" buttons. */
+export function getRecentCombos(limit = 6): RecentCombo[] {
+	return (db
+		.prepare(
+			`SELECT t.transaction_type,
+				t.product_id,
+				CASE WHEN t.transaction_type = 'transfer' THEN t.from_storage_id ELSE t.storage_id END AS storage_id,
+				t.to_storage_id,
+				t.quantity,
+				COUNT(*) AS uses
+			 FROM transactions t
+			 JOIN products p ON p.id = t.product_id AND p.active = 1
+			 WHERE t.reverts_id IS NULL
+				AND t.created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-60 days')
+				AND NOT EXISTS (SELECT 1 FROM transactions r WHERE r.reverts_id = t.id)
+			 GROUP BY 1, 2, 3, 4, 5
+			 ORDER BY uses DESC, MAX(t.created_at) DESC
+			 LIMIT ?`
+		)
+		.all(limit) as any[]).map(r => ({ ...r })) as RecentCombo[]
+}
+
+/** Recent distinct notes of removals (e.g. delivery targets), most recent first. */
+export function getRecentNotes(limit = 8): string[] {
+	return (db
+		.prepare(
+			`SELECT notes FROM transactions
+			 WHERE transaction_type = 'remove' AND reverts_id IS NULL AND notes IS NOT NULL AND TRIM(notes) != ''
+				AND notes NOT LIKE 'Rückgängig%'
+			 GROUP BY notes
+			 ORDER BY MAX(created_at) DESC
+			 LIMIT ?`
+		)
+		.all(limit) as { notes: string }[]).map(r => r.notes)
 }
 
 // ─── Product CRUD ──────────────────────────────────────────────────────────────

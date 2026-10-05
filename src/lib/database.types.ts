@@ -70,3 +70,12 @@ export type TriggeredAlert = StockAlertWithJoins & {
 	product_name: string
 	storage_name: string
 }
+
+export type RecentCombo = {
+	transaction_type: TransactionType
+	product_id: string
+	storage_id: string
+	to_storage_id: string | null
+	quantity: number
+	uses: number
+}

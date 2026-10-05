@@ -1,10 +1,10 @@
 import type { LayoutServerLoad } from './$types'
-import { getProducts, getStorages, getInventoryReport, getAlerts } from '$lib/server/db.js'
+import { getProducts, getStorages, getInventoryReport, getAlerts, getRecentCombos, getRecentNotes } from '$lib/server/db.js'
 
 export const load: LayoutServerLoad = async ({ locals }) => {
 	if (!locals.authed) {
 		// Public pages (login) — no data needed.
-		return { isAdmin: false, products: [], storages: [], inventory: [], alerts: [] }
+		return { isAdmin: false, products: [], storages: [], inventory: [], alerts: [], recent: [], recentNotes: [] }
 	}
 
 	return {
@@ -13,6 +13,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		products: getProducts(),
 		storages: getStorages(),
 		inventory: getInventoryReport(),
-		alerts: getAlerts(true)
+		alerts: getAlerts(true),
+		recent: getRecentCombos(),
+		recentNotes: getRecentNotes()
 	}
 }

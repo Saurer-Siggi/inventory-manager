@@ -6,7 +6,7 @@ function parse(body: any) {
 	const sku = String(body.sku ?? '').trim()
 	const name = String(body.name ?? '').trim()
 	const unit_size = String(body.unit_size ?? '').trim()
-	if (!sku || !name || !unit_size) throw error(400, 'SKU, name, and unit size are required')
+	if (!sku || !name || !unit_size) throw error(400, 'SKU, Name und Einheit sind erforderlich')
 	return {
 		sku,
 		name,
@@ -18,39 +18,39 @@ function parse(body: any) {
 }
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!locals.authed) throw error(401, 'Not authenticated')
+	if (!locals.authed) throw error(401, 'Nicht angemeldet')
 	const input = parse(await request.json())
 	try {
 		return json(createProduct(input))
 	} catch (err) {
-		if (isUniqueViolation(err)) throw error(409, 'A product with this SKU already exists')
-		throw error(500, err instanceof Error ? err.message : 'Failed to create product')
+		if (isUniqueViolation(err)) throw error(409, 'Ein Produkt mit dieser SKU existiert bereits')
+		throw error(500, err instanceof Error ? err.message : 'Produkt konnte nicht angelegt werden')
 	}
 }
 
 export const PUT: RequestHandler = async ({ request, locals }) => {
-	if (!locals.authed) throw error(401, 'Not authenticated')
+	if (!locals.authed) throw error(401, 'Nicht angemeldet')
 	const body = await request.json()
 	const id = String(body.id ?? '')
-	if (!id) throw error(400, 'Missing id')
+	if (!id) throw error(400, 'ID fehlt')
 	try {
 		updateProduct(id, parse(body))
 	} catch (err) {
-		if (isUniqueViolation(err)) throw error(409, 'A product with this SKU already exists')
-		throw error(500, err instanceof Error ? err.message : 'Failed to update product')
+		if (isUniqueViolation(err)) throw error(409, 'Ein Produkt mit dieser SKU existiert bereits')
+		throw error(500, err instanceof Error ? err.message : 'Produkt konnte nicht gespeichert werden')
 	}
 	return json({ ok: true })
 }
 
 export const DELETE: RequestHandler = async ({ request, locals }) => {
-	if (!locals.authed) throw error(401, 'Not authenticated')
+	if (!locals.authed) throw error(401, 'Nicht angemeldet')
 	const id = String((await request.json()).id ?? '')
-	if (!id) throw error(400, 'Missing id')
+	if (!id) throw error(400, 'ID fehlt')
 	try {
 		deleteProduct(id)
 	} catch (err) {
-		if (isForeignKeyViolation(err)) throw error(409, 'Cannot delete — this product has history. Deactivate it instead.')
-		throw error(500, err instanceof Error ? err.message : 'Failed to delete product')
+		if (isForeignKeyViolation(err)) throw error(409, 'Löschen nicht möglich — für dieses Produkt gibt es Buchungen. Bitte deaktivieren.')
+		throw error(500, err instanceof Error ? err.message : 'Produkt konnte nicht gelöscht werden')
 	}
 	return json({ ok: true })
 }

@@ -10,6 +10,9 @@ services:
       - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET is required}
       # Public URL so login/logout form POSTs pass SvelteKit's CSRF check.
       - ORIGIN=${ORIGIN:?ORIGIN is required}
+      # Real client IP behind the reverse proxy (needed for the login rate limit).
+      - ADDRESS_HEADER=X-Forwarded-For
+      - XFF_DEPTH=1
     env_file:
       - .env
     volumes:

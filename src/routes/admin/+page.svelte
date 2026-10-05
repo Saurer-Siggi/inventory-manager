@@ -40,7 +40,7 @@
 
 	const saveProduct = async () => {
 		if (!productForm.sku || !productForm.name || !productForm.unit_size) {
-			toast.error('SKU, name, and unit size are required')
+			toast.error('SKU, Name und Einheitsgröße sind erforderlich')
 			return
 		}
 		loading = true
@@ -59,10 +59,10 @@
 				})
 			})
 			if (!res.ok) {
-				toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to save product')
+				toast.error((await res.json().catch(() => ({})))?.message ?? 'Produkt konnte nicht gespeichert werden')
 				return
 			}
-			toast.success(productForm.id ? 'Product updated' : 'Product created')
+			toast.success(productForm.id ? 'Produkt aktualisiert' : 'Produkt angelegt')
 			productDrawerOpen = false
 			await invalidateAll()
 		} catch (e: any) {
@@ -79,16 +79,16 @@
 			body: JSON.stringify({ ...product, active: !product.active })
 		})
 		if (!res.ok) {
-			toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to update product')
+			toast.error((await res.json().catch(() => ({})))?.message ?? 'Produkt konnte nicht aktualisiert werden')
 			return
 		}
-		toast.success(product.active ? 'Product deactivated' : 'Product activated')
+		toast.success(product.active ? 'Produkt deaktiviert' : 'Produkt aktiviert')
 		await invalidateAll()
 	}
 
 	const deleteProduct = async () => {
 		if (!productForm.id) return
-		if (!confirm(`Permanently delete "${productForm.name}"? This cannot be undone.`)) return
+		if (!confirm(`„${productForm.name}“ endgültig löschen? Das kann nicht rückgängig gemacht werden.`)) return
 		loading = true
 		try {
 			const res = await fetch('/api/products', {
@@ -97,10 +97,10 @@
 				body: JSON.stringify({ id: productForm.id })
 			})
 			if (!res.ok) {
-				toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to delete product')
+				toast.error((await res.json().catch(() => ({})))?.message ?? 'Produkt konnte nicht gelöscht werden')
 				return
 			}
-			toast.success(`Deleted "${productForm.name}"`)
+			toast.success(`„${productForm.name}“ gelöscht`)
 			productDrawerOpen = false
 			await invalidateAll()
 		} catch (e: any) {
@@ -111,7 +111,9 @@
 	}
 </script>
 
-<Drawer open={productDrawerOpen} title={productForm.id ? 'Edit Product' : 'New Product'} onclose={() => (productDrawerOpen = false)}>
+<svelte:head><title>Produkte · Siggi Inventar</title></svelte:head>
+
+<Drawer open={productDrawerOpen} title={productForm.id ? 'Produkt bearbeiten' : 'Neues Produkt'} onclose={() => (productDrawerOpen = false)}>
 	<form class="space-y-4" onsubmit={e => { e.preventDefault(); saveProduct() }}>
 		<div>
 			<label for="p-sku" class="mb-1 block text-sm font-medium text-gray-700">SKU *</label>
@@ -119,7 +121,7 @@
 				id="p-sku"
 				type="text"
 				bind:value={productForm.sku}
-				placeholder="e.g. SSL-001"
+				placeholder="z. B. SSL-001"
 				class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
 			/>
 		</div>
@@ -129,12 +131,12 @@
 				id="p-name"
 				type="text"
 				bind:value={productForm.name}
-				placeholder="Product name"
+				placeholder="Produktname"
 				class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
 			/>
 		</div>
 		<div>
-			<label for="p-desc" class="mb-1 block text-sm font-medium text-gray-700">Description</label>
+			<label for="p-desc" class="mb-1 block text-sm font-medium text-gray-700">Beschreibung</label>
 			<textarea
 				id="p-desc"
 				bind:value={productForm.description}
@@ -144,17 +146,17 @@
 		</div>
 		<div class="grid grid-cols-2 gap-3">
 			<div>
-				<label for="p-unit" class="mb-1 block text-sm font-medium text-gray-700">Unit size *</label>
+				<label for="p-unit" class="mb-1 block text-sm font-medium text-gray-700">Einheitsgröße *</label>
 				<input
 					id="p-unit"
 					type="text"
 					bind:value={productForm.unit_size}
-					placeholder="e.g. 500ml"
+					placeholder="z. B. 500 ml"
 					class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none"
 				/>
 			</div>
 			<div>
-				<label for="p-pack" class="mb-1 block text-sm font-medium text-gray-700">Pack size</label>
+				<label for="p-pack" class="mb-1 block text-sm font-medium text-gray-700">Packungsgröße</label>
 				<input
 					id="p-pack"
 					type="number"
@@ -166,7 +168,7 @@
 		</div>
 		<label class="flex cursor-pointer items-center gap-2.5">
 			<input type="checkbox" bind:checked={productForm.active} class="h-4 w-4 rounded border-gray-300 text-blue-600" />
-			<span class="text-sm text-gray-700">Active</span>
+			<span class="text-sm text-gray-700">Aktiv</span>
 		</label>
 		<div class="flex gap-2 pt-2">
 			<button
@@ -174,14 +176,14 @@
 				onclick={() => (productDrawerOpen = false)}
 				class="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
 			>
-				Cancel
+				Abbrechen
 			</button>
 			<button
 				type="submit"
 				disabled={loading}
 				class="flex-1 rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
 			>
-				{loading ? 'Saving…' : productForm.id ? 'Update' : 'Create'}
+				{loading ? 'Speichern…' : productForm.id ? 'Aktualisieren' : 'Anlegen'}
 			</button>
 		</div>
 		{#if productForm.id}
@@ -192,9 +194,9 @@
 					disabled={loading}
 					class="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-100 disabled:opacity-50"
 				>
-					Delete product permanently
+					Produkt endgültig löschen
 				</button>
-				<p class="mt-1.5 text-center text-xs text-gray-400">Only works if no transaction history exists.</p>
+				<p class="mt-1.5 text-center text-xs text-gray-400">Nur möglich, wenn keine Buchungen vorhanden sind.</p>
 			</div>
 		{/if}
 	</form>
@@ -206,14 +208,14 @@
 		style="padding-top: max(0.625rem, env(safe-area-inset-top, 0px)); padding-left: max(1rem, env(safe-area-inset-left, 0px)); padding-right: max(1rem, env(safe-area-inset-right, 0px));"
 	>
 		<div class="flex items-center gap-3">
-			<a href="/" class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700" aria-label="Back">
+			<a href="/" class="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700" aria-label="Zurück">
 				<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
 					<path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd" />
 				</svg>
 			</a>
 			<div class="min-w-0 flex-1">
-				<h1 class="text-base font-bold text-gray-900">Products</h1>
-				<p class="truncate text-xs text-gray-400">Catalog</p>
+				<h1 class="text-base font-bold text-gray-900">Produkte</h1>
+				<p class="truncate text-xs text-gray-400">Katalog</p>
 			</div>
 			{#if dataLoading}
 				<div class="h-4 w-4 animate-spin rounded-full border-2 border-blue-400 border-t-transparent"></div>
@@ -223,22 +225,22 @@
 
 	<main class="px-4 py-4">
 		<div class="mb-3 flex items-center justify-between">
-			<h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Catalog</h2>
+			<h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Katalog</h2>
 			<button
 				type="button"
 				onclick={openNewProduct}
 				class="flex items-center gap-1.5 rounded-xl bg-blue-500 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-600 active:scale-95"
 			>
 				<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" /></svg>
-				Add product
+				Produkt hinzufügen
 			</button>
 		</div>
 
 		{#if products.length === 0}
 			<div class="rounded-xl bg-white py-12 text-center shadow-sm ring-1 ring-gray-100">
-				<p class="text-sm text-gray-500">No products yet</p>
+				<p class="text-sm text-gray-500">Noch keine Produkte</p>
 				<button type="button" onclick={openNewProduct} class="mt-2 text-sm font-medium text-blue-600 hover:underline">
-					Create your first product
+					Erstes Produkt anlegen
 				</button>
 			</div>
 		{:else}
@@ -253,10 +255,10 @@
 										? 'bg-green-100 text-green-700'
 										: 'bg-gray-100 text-gray-500'}"
 								>
-									{product.active ? 'Active' : 'Inactive'}
+									{product.active ? 'Aktiv' : 'Inaktiv'}
 								</span>
 							</div>
-							<p class="mt-0.5 text-xs text-gray-400">{product.sku} · {product.unit_size} · Pack of {product.pack_size}</p>
+							<p class="mt-0.5 text-xs text-gray-400">{product.sku} · {product.unit_size} · Packung à {product.pack_size}</p>
 							{#if product.description}
 								<p class="mt-0.5 truncate text-xs text-gray-400">{product.description}</p>
 							{/if}
@@ -266,7 +268,7 @@
 								type="button"
 								onclick={() => toggleProductActive(product)}
 								class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-								title={product.active ? 'Deactivate' : 'Activate'}
+								title={product.active ? 'Deaktivieren' : 'Aktivieren'}
 							>
 								<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
 									{#if product.active}
@@ -280,7 +282,7 @@
 								type="button"
 								onclick={() => openEditProduct(product)}
 								class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-blue-600"
-								title="Edit"
+								title="Bearbeiten"
 							>
 								<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
 									<path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
@@ -294,7 +296,7 @@
 		{/if}
 
 		<p class="mt-6 text-center text-[11px] text-gray-400">
-			Locations & stock: header warehouse icon. History & alerts: bottom tabs. Add / remove / move: Home.
+			Lagerorte & Bestand: Lager-Symbol oben. Verlauf & Warnungen: untere Tabs. Zugang / Abgang / Umlagerung: Start.
 		</p>
 	</main>
 </div>

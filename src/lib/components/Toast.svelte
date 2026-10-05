@@ -30,11 +30,23 @@
 					{/if}
 				</span>
 				<p class="flex-1 text-sm font-medium leading-5">{t.message}</p>
+				{#if t.action}
+					<button
+						type="button"
+						class="shrink-0 rounded-lg bg-white/20 px-3 py-1 text-sm font-bold uppercase tracking-wide hover:bg-white/30 active:scale-95"
+						onclick={async () => {
+							toast.dismiss(t.id)
+							await t.action?.run()
+						}}
+					>
+						{t.action.label}
+					</button>
+				{/if}
 				<button
 					type="button"
 					class="shrink-0 rounded p-0.5 opacity-75 hover:opacity-100"
 					onclick={() => toast.dismiss(t.id)}
-					aria-label="Dismiss"
+					aria-label="Schließen"
 				>
 					<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
 						<path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
