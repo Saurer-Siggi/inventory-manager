@@ -173,3 +173,9 @@ Set in `.env` (see `.env.example`):
 - npm run build: Build the project
 - npm run check: Run the typechecker
 - npm run start: Start production server
+## Quick-entry architecture (remove/add/transfer)
+
+- `/remove`, `/add`, `/transfer` all render `src/lib/components/StockForm.svelte` (tiles instead of dropdowns, remembered location, quantity chips, "Häufig" combos, undo toast). Deep links: `?product=<SKU|id>&storage=<name-part|id>[&to=…][&quantity=n][&notes=…]`.
+- Offline: failed bookings go to `src/lib/outbox.ts` (localStorage) and replay with their `client_id` idempotency key; the service worker caches pages network-first (`vite.config.ts`).
+- `applyTransaction()` rejects removes beyond stock (409, `force` overrides) and **always** rejects transfers beyond source stock (a forced transfer would create stock from nothing). Undo books a counter-transaction (`reverts_id`).
+- Sessions are random tokens stored hashed in the `sessions` table (revocable, logout deletes them); login is rate-limited per IP (set `ADDRESS_HEADER`/`XFF_DEPTH` behind a proxy).

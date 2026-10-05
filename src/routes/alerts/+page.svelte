@@ -57,7 +57,7 @@
 
 	const saveAlert = async () => {
 		if (!alertForm.product_id || !alertForm.storage_id || alertForm.threshold < 0) {
-			toast.error('Product, location, and threshold are required')
+			toast.error('Produkt, Standort und Schwellenwert sind erforderlich')
 			return
 		}
 		saveLoading = true
@@ -74,10 +74,10 @@
 				})
 			})
 			if (!res.ok) {
-				toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to save alert')
+				toast.error((await res.json().catch(() => ({})))?.message ?? 'Warnung konnte nicht gespeichert werden')
 				return
 			}
-			toast.success(alertForm.id ? 'Alert updated' : 'Alert created')
+			toast.success(alertForm.id ? 'Warnung aktualisiert' : 'Warnung erstellt')
 			alertDrawerOpen = false
 			await invalidateAll()
 		} catch (e: any) {
@@ -88,7 +88,7 @@
 	}
 
 	const deleteAlert = async (alertId: string) => {
-		if (!confirm('Delete this alert?')) return
+		if (!confirm('Diese Warnung löschen?')) return
 		saveLoading = true
 		try {
 			const res = await fetch('/api/alerts', {
@@ -97,10 +97,10 @@
 				body: JSON.stringify({ id: alertId })
 			})
 			if (!res.ok) {
-				toast.error((await res.json().catch(() => ({})))?.message ?? 'Failed to delete alert')
+				toast.error((await res.json().catch(() => ({})))?.message ?? 'Warnung konnte nicht gelöscht werden')
 				return
 			}
-			toast.success('Alert deleted')
+			toast.success('Warnung gelöscht')
 			await invalidateAll()
 		} catch (e: any) {
 			toast.error(e.message)
@@ -110,36 +110,38 @@
 	}
 </script>
 
-<Drawer open={alertDrawerOpen} title={alertForm.id ? 'Edit alert' : 'New alert'} onclose={() => (alertDrawerOpen = false)}>
+<svelte:head><title>Warnungen · Siggi Inventar</title></svelte:head>
+
+<Drawer open={alertDrawerOpen} title={alertForm.id ? 'Warnung bearbeiten' : 'Neue Warnung'} onclose={() => (alertDrawerOpen = false)}>
 	<form class="space-y-4" onsubmit={e => { e.preventDefault(); saveAlert() }}>
 		<div>
-			<label for="al-product" class="mb-1 block text-sm font-medium text-gray-700">Product *</label>
+			<label for="al-product" class="mb-1 block text-sm font-medium text-gray-700">Produkt *</label>
 			<select
 				id="al-product"
 				bind:value={alertForm.product_id}
 				class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100 focus:outline-none"
 			>
-				<option value="">Select</option>
+				<option value="">Auswählen</option>
 				{#each products.filter(p => p.active) as product}
 					<option value={product.id}>{product.name} ({product.sku})</option>
 				{/each}
 			</select>
 		</div>
 		<div>
-			<label for="al-storage" class="mb-1 block text-sm font-medium text-gray-700">Location *</label>
+			<label for="al-storage" class="mb-1 block text-sm font-medium text-gray-700">Standort *</label>
 			<select
 				id="al-storage"
 				bind:value={alertForm.storage_id}
 				class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100 focus:outline-none"
 			>
-				<option value="">Select</option>
+				<option value="">Auswählen</option>
 				{#each storages.filter(s => s.active) as storage}
 					<option value={storage.id}>{storage.name}</option>
 				{/each}
 			</select>
 		</div>
 		<div>
-			<label for="al-thresh" class="mb-1 block text-sm font-medium text-gray-700">Threshold *</label>
+			<label for="al-thresh" class="mb-1 block text-sm font-medium text-gray-700">Schwellenwert *</label>
 			<input
 				id="al-thresh"
 				type="number"
@@ -147,11 +149,11 @@
 				min="0"
 				class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100 focus:outline-none"
 			/>
-			<p class="mt-1 text-xs text-gray-400">Fires when stock is at or below this number</p>
+			<p class="mt-1 text-xs text-gray-400">Löst aus, wenn der Bestand diese Zahl erreicht oder unterschreitet</p>
 		</div>
 		<label class="flex cursor-pointer items-center gap-2.5">
 			<input type="checkbox" bind:checked={alertForm.active} class="h-4 w-4 rounded border-gray-300 text-orange-500" />
-			<span class="text-sm text-gray-700">Active</span>
+			<span class="text-sm text-gray-700">Aktiv</span>
 		</label>
 		<div class="flex gap-2 pt-2">
 			<button
@@ -159,23 +161,23 @@
 				onclick={() => (alertDrawerOpen = false)}
 				class="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
 			>
-				Cancel
+				Abbrechen
 			</button>
 			<button
 				type="submit"
 				disabled={saveLoading}
 				class="flex-1 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
 			>
-				{saveLoading ? 'Saving…' : alertForm.id ? 'Update' : 'Create'}
+				{saveLoading ? 'Speichern…' : alertForm.id ? 'Aktualisieren' : 'Erstellen'}
 			</button>
 		</div>
 	</form>
 </Drawer>
 
 <div class="mx-auto max-w-md pb-6 pt-3">
-	<h1 class="mb-1 text-lg font-bold text-gray-900">Alerts</h1>
+	<h1 class="mb-1 text-lg font-bold text-gray-900">Warnungen</h1>
 	<p class="mb-4 text-xs text-gray-500">
-		Low-stock warnings. {#if !isAdmin}Ask an admin to add or change rules.{/if}
+		Warnungen bei niedrigem Bestand. {#if !isAdmin}Regeln kann nur ein Admin hinzufügen oder ändern.{/if}
 	</p>
 
 	{#if loading}
@@ -187,7 +189,7 @@
 			<div class="mb-4 rounded-xl border border-red-200 bg-red-50 p-3">
 				<div class="flex items-center gap-2">
 					<div class="h-2 w-2 animate-pulse rounded-full bg-red-500"></div>
-					<h2 class="text-sm font-semibold text-red-900">Triggered now ({triggered.length})</h2>
+					<h2 class="text-sm font-semibold text-red-900">Jetzt ausgelöst ({triggered.length})</h2>
 				</div>
 				<ul class="mt-2 space-y-1">
 					{#each triggered as a}
@@ -202,26 +204,26 @@
 			</div>
 		{:else}
 			<div class="mb-4 rounded-xl bg-green-50 px-3 py-2.5 text-xs text-green-800 ring-1 ring-green-100">
-				No active alerts below threshold.
+				Keine aktive Warnung unter dem Schwellenwert.
 			</div>
 		{/if}
 
 		<div class="mb-2 flex items-center justify-between">
-			<h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Rules</h2>
+			<h2 class="text-xs font-semibold uppercase tracking-wide text-gray-400">Regeln</h2>
 			{#if isAdmin}
 				<button
 					type="button"
 					onclick={openNewAlert}
 					class="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600"
 				>
-					Add
+					Hinzufügen
 				</button>
 			{/if}
 		</div>
 
 		{#if stockAlerts.length === 0}
 			<p class="rounded-xl bg-white py-10 text-center text-sm text-gray-500 shadow-sm ring-1 ring-gray-100">
-				No rules configured.
+				Keine Regeln angelegt.
 			</p>
 		{:else}
 			<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
@@ -237,7 +239,7 @@
 							<p class="text-xs text-gray-400">
 								{alert.storages.name} · ≤ {alert.threshold}
 								<span class="ml-1 rounded px-1 py-0.5 text-[10px] font-semibold {alert.active ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}">
-									{alert.active ? 'on' : 'off'}
+									{alert.active ? 'an' : 'aus'}
 								</span>
 							</p>
 						</div>
@@ -247,7 +249,7 @@
 									type="button"
 									onclick={() => openEditAlert(alert)}
 									class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-blue-600"
-									aria-label="Edit"
+									aria-label="Bearbeiten"
 								>
 									<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
 										<path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
@@ -258,7 +260,7 @@
 									type="button"
 									onclick={() => deleteAlert(alert.id)}
 									class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-red-600"
-									aria-label="Delete"
+									aria-label="Löschen"
 								>
 									<svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
 										<path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd" />

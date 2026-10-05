@@ -6,6 +6,7 @@
 	import AppShell from '$lib/components/AppShell.svelte'
 	import Toast from '$lib/components/Toast.svelte'
 	import { products, storages, inventory } from '$lib/stores.js'
+	import { initOutbox } from '$lib/outbox.js'
 
 	let { data, children } = $props()
 
@@ -16,11 +17,27 @@
 		inventory.set(data.inventory ?? [])
 	})
 
-	onMount(async () => {
+	// Active alerts whose product/location stock is at or below its threshold.
+	const alertCount = $derived(
+		(data.alerts ?? []).filter(a => {
+			if (!a.active) return false
+			const item = (data.inventory ?? []).find(i => i.product_id === a.product_id && i.storage_id === a.storage_id)
+			return !!item && item.quantity <= a.threshold
+		}).length
+	)
+
+	onMount(() => {
 		if (pwaInfo) {
-			const { registerSW } = await import('virtual:pwa-register')
-			registerSW({ immediate: true })
+			import('virtual:pwa-register').then(({ registerSW }) => registerSW({ immediate: true }))
 		}
+		const stop = initOutbox()
+		// Warm the service worker's page cache so the booking screens open even without signal.
+		if (data.isAdmin) {
+			setTimeout(() => {
+				for (const url of ['/remove', '/add', '/transfer', '/history']) fetch(url).catch(() => {})
+			}, 2500)
+		}
+		return stop
 	})
 
 	const allowedUnauthenticatedPaths = ['/login']
@@ -40,7 +57,7 @@
 <Toast />
 
 {#if useAppShell}
-	<AppShell isAdmin={data.isAdmin}>{@render children()}</AppShell>
+	<AppShell isAdmin={data.isAdmin} {alertCount}>{@render children()}</AppShell>
 {:else}
 	{@render children()}
 {/if}
